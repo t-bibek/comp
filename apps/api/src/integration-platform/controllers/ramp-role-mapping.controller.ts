@@ -18,6 +18,7 @@ import { ConnectionRepository } from '../repositories/connection.repository';
 import { CredentialVaultService } from '../services/credential-vault.service';
 import { OAuthCredentialsService } from '../services/oauth-credentials.service';
 import { RampRoleMappingService } from '../services/ramp-role-mapping.service';
+import { IntegrationSyncLoggerService } from '../services/integration-sync-logger.service';
 import {
   getManifest,
   type RampUser,
@@ -35,6 +36,7 @@ export class RampRoleMappingController {
     private readonly credentialVaultService: CredentialVaultService,
     private readonly oauthCredentialsService: OAuthCredentialsService,
     private readonly roleMappingService: RampRoleMappingService,
+    private readonly syncLoggerService: IntegrationSyncLoggerService,
   ) {}
 
   @Post('discover-roles')
@@ -59,26 +61,47 @@ export class RampRoleMappingController {
     if (cachedRoles) {
       discoveredRoles = cachedRoles;
     } else {
-      const accessToken = await this.getAccessToken(connectionId, organizationId);
-      const users = await this.fetchAllRampUsers(accessToken);
-
-      const roleCounts = new Map<string, number>();
-      for (const user of users) {
-        const role = user.role ?? 'UNKNOWN';
-        roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
-      }
-
-      discoveredRoles = Array.from(roleCounts.entries())
-        .map(([role, userCount]) => ({ role, userCount }))
-        .sort((a, b) => b.userCount - a.userCount);
-
-      // Cache the discovered roles
-      const existingMapping = await this.roleMappingService.getSavedMapping(connectionId);
-      await this.roleMappingService.saveMapping(
+      const logId = await this.syncLoggerService.startLog({
         connectionId,
-        existingMapping ?? [],
-        discoveredRoles,
-      );
+        organizationId,
+        provider: 'ramp',
+        eventType: 'role_discovery',
+        triggeredBy: 'manual',
+      });
+
+      try {
+        const accessToken = await this.getAccessToken(connectionId, organizationId);
+        const users = await this.fetchAllRampUsers(accessToken);
+
+        const roleCounts = new Map<string, number>();
+        for (const user of users) {
+          const role = user.role ?? 'UNKNOWN';
+          roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1);
+        }
+
+        discoveredRoles = Array.from(roleCounts.entries())
+          .map(([role, userCount]) => ({ role, userCount }))
+          .sort((a, b) => b.userCount - a.userCount);
+
+        // Cache the discovered roles
+        const existingMapping = await this.roleMappingService.getSavedMapping(connectionId);
+        await this.roleMappingService.saveMapping(
+          connectionId,
+          existingMapping ?? [],
+          discoveredRoles,
+        );
+
+        await this.syncLoggerService.completeLog(logId, {
+          rolesDiscovered: discoveredRoles.length,
+          totalUsers: users.length,
+        });
+      } catch (error) {
+        await this.syncLoggerService.failLog(
+          logId,
+          error instanceof Error ? error.message : String(error),
+        );
+        throw error;
+      }
     }
 
     const rampRoleNames = discoveredRoles.map((r) => r.role);
@@ -121,13 +144,33 @@ export class RampRoleMappingController {
       throw new HttpException('Connection not found', HttpStatus.NOT_FOUND);
     }
 
-    // Create custom roles in the database
-    await this.roleMappingService.ensureCustomRolesExist(organizationId, mapping);
+    const logId = await this.syncLoggerService.startLog({
+      connectionId,
+      organizationId,
+      provider: 'ramp',
+      eventType: 'role_mapping_save',
+      triggeredBy: 'manual',
+    });
 
-    // Save mapping to connection variables (preserve existing discovered roles)
-    await this.roleMappingService.saveMapping(connectionId, mapping);
+    try {
+      // Create custom roles in the database
+      await this.roleMappingService.ensureCustomRolesExist(organizationId, mapping);
 
-    return { success: true, mapping };
+      // Save mapping to connection variables (preserve existing discovered roles)
+      await this.roleMappingService.saveMapping(connectionId, mapping);
+
+      await this.syncLoggerService.completeLog(logId, {
+        mappingCount: mapping.length,
+      });
+
+      return { success: true, mapping };
+    } catch (error) {
+      await this.syncLoggerService.failLog(
+        logId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
   }
 
   @Get('role-mapping')

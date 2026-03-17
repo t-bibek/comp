@@ -28,6 +28,7 @@ import { CheckRunRepository } from './repositories/check-run.repository';
 import { DynamicIntegrationRepository } from './repositories/dynamic-integration.repository';
 import { DynamicCheckRepository } from './repositories/dynamic-check.repository';
 import { RampRoleMappingService } from './services/ramp-role-mapping.service';
+import { IntegrationSyncLoggerService } from './services/integration-sync-logger.service';
 
 @Module({
   imports: [AuthModule],
@@ -54,6 +55,7 @@ import { RampRoleMappingService } from './services/ramp-role-mapping.service';
     ConnectionAuthTeardownService,
     DynamicManifestLoaderService,
     RampRoleMappingService,
+    IntegrationSyncLoggerService,
     // Repositories
     ProviderRepository,
     ConnectionRepository,

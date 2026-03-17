@@ -31,6 +31,7 @@ import {
   type RoleMappingEntry,
 } from '@trycompai/integration-platform';
 import { RampRoleMappingService } from '../services/ramp-role-mapping.service';
+import { IntegrationSyncLoggerService } from '../services/integration-sync-logger.service';
 
 interface GoogleWorkspaceUser {
   id: string;
@@ -110,6 +111,7 @@ export class SyncController {
     private readonly credentialVaultService: CredentialVaultService,
     private readonly oauthCredentialsService: OAuthCredentialsService,
     private readonly rampRoleMappingService: RampRoleMappingService,
+    private readonly syncLoggerService: IntegrationSyncLoggerService,
   ) {}
 
   /**
@@ -1013,6 +1015,46 @@ export class SyncController {
       );
     }
 
+    const triggeredBy =
+      authContext.authType === 'service'
+        ? 'scheduled'
+        : authContext.authType === 'api-key'
+          ? 'api'
+          : 'manual';
+
+    const logId = await this.syncLoggerService.startLog({
+      connectionId,
+      organizationId,
+      provider: 'ramp',
+      eventType: 'employee_sync',
+      triggeredBy,
+      userId: authContext.userId ?? undefined,
+    });
+
+    try {
+      return await this.syncRampEmployeesInner(
+        organizationId,
+        connectionId,
+        authContext,
+        connection,
+        logId,
+      );
+    } catch (error) {
+      await this.syncLoggerService.failLog(
+        logId,
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
+    }
+  }
+
+  private async syncRampEmployeesInner(
+    organizationId: string,
+    connectionId: string,
+    authContext: AuthContextType,
+    connection: { variables: unknown },
+    logId: string,
+  ) {
     const manifest = getManifest('ramp');
     if (!manifest) {
       throw new HttpException(
@@ -1572,13 +1614,25 @@ export class SyncController {
       data: { lastSyncAt: new Date() },
     });
 
-    return {
+    const syncResult = {
       success: true,
       totalFound: activeUsers.length,
       totalInactive: inactiveUsers.length,
       totalSuspended: suspendedUsers.length,
       ...results,
     };
+
+    await this.syncLoggerService.completeLog(logId, {
+      imported: results.imported,
+      deactivated: results.deactivated,
+      reactivated: results.reactivated,
+      skipped: results.skipped,
+      errors: results.errors,
+      totalFound: activeUsers.length,
+      details: results.details,
+    });
+
+    return syncResult;
   }
 
   /**
