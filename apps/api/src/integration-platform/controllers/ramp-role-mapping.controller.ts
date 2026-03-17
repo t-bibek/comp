@@ -15,16 +15,10 @@ import { RequirePermission } from '../../auth/require-permission.decorator';
 import { OrganizationId } from '../../auth/auth-context.decorator';
 import { db } from '@db';
 import { ConnectionRepository } from '../repositories/connection.repository';
-import { CredentialVaultService } from '../services/credential-vault.service';
-import { OAuthCredentialsService } from '../services/oauth-credentials.service';
 import { RampRoleMappingService } from '../services/ramp-role-mapping.service';
 import { IntegrationSyncLoggerService } from '../services/integration-sync-logger.service';
-import {
-  getManifest,
-  type RampUser,
-  type RampUsersResponse,
-  type RoleMappingEntry,
-} from '@trycompai/integration-platform';
+import { RampApiService } from '../services/ramp-api.service';
+import { type RoleMappingEntry } from '@trycompai/integration-platform';
 
 @Controller({ path: 'integrations/sync/ramp', version: '1' })
 @ApiTags('Integrations')
@@ -33,10 +27,9 @@ import {
 export class RampRoleMappingController {
   constructor(
     private readonly connectionRepository: ConnectionRepository,
-    private readonly credentialVaultService: CredentialVaultService,
-    private readonly oauthCredentialsService: OAuthCredentialsService,
     private readonly roleMappingService: RampRoleMappingService,
     private readonly syncLoggerService: IntegrationSyncLoggerService,
+    private readonly rampApiService: RampApiService,
   ) {}
 
   @Post('discover-roles')
@@ -75,8 +68,8 @@ export class RampRoleMappingController {
       });
 
       try {
-        const accessToken = await this.getAccessToken(connectionId, organizationId);
-        const users = await this.fetchAllRampUsers(accessToken);
+        const accessToken = await this.rampApiService.getAccessToken(connectionId, organizationId);
+        const users = await this.rampApiService.fetchUsers(accessToken);
 
         const roleCounts = new Map<string, number>();
         for (const user of users) {
@@ -199,97 +192,5 @@ export class RampRoleMappingController {
 
     const mapping = await this.roleMappingService.getSavedMapping(connectionId);
     return { mapping };
-  }
-
-  private async getAccessToken(
-    connectionId: string,
-    organizationId: string,
-  ): Promise<string> {
-    let credentials =
-      await this.credentialVaultService.getDecryptedCredentials(connectionId);
-
-    if (!credentials?.access_token) {
-      throw new HttpException(
-        'No valid credentials. Please reconnect.',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    const manifest = getManifest('ramp');
-    const oauthConfig =
-      manifest?.auth.type === 'oauth2' ? manifest.auth.config : null;
-
-    if (oauthConfig?.supportsRefreshToken && credentials.refresh_token) {
-      try {
-        const oauthCreds = await this.oauthCredentialsService.getCredentials(
-          'ramp',
-          organizationId,
-        );
-        if (oauthCreds) {
-          const newToken = await this.credentialVaultService.refreshOAuthTokens(
-            connectionId,
-            {
-              tokenUrl: oauthConfig.tokenUrl,
-              refreshUrl: oauthConfig.refreshUrl,
-              clientId: oauthCreds.clientId,
-              clientSecret: oauthCreds.clientSecret,
-              clientAuthMethod: oauthConfig.clientAuthMethod,
-            },
-          );
-          if (newToken) {
-            credentials =
-              await this.credentialVaultService.getDecryptedCredentials(connectionId);
-          }
-        }
-      } catch {
-        // Try with existing token
-      }
-    }
-
-    if (!credentials?.access_token) {
-      throw new HttpException(
-        'No valid credentials. Please reconnect.',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    const token = credentials.access_token;
-    return Array.isArray(token) ? token[0] : token;
-  }
-
-  private async fetchAllRampUsers(accessToken: string): Promise<RampUser[]> {
-    const users: RampUser[] = [];
-    let nextUrl: string | null = null;
-
-    do {
-      const url = nextUrl
-        ? new URL(nextUrl)
-        : new URL('https://demo-api.ramp.com/developer/v1/users');
-      if (!nextUrl) {
-        url.searchParams.set('page_size', '100');
-      }
-
-      const response = await fetch(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new HttpException(
-          'Failed to fetch users from Ramp',
-          HttpStatus.BAD_GATEWAY,
-        );
-      }
-
-      const data: RampUsersResponse = await response.json();
-      if (data.data?.length) {
-        users.push(...data.data);
-      }
-      nextUrl = data.page?.next ?? null;
-    } while (nextUrl);
-
-    return users;
   }
 }

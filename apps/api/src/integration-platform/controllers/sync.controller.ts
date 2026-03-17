@@ -32,6 +32,7 @@ import {
 } from '@trycompai/integration-platform';
 import { RampRoleMappingService } from '../services/ramp-role-mapping.service';
 import { IntegrationSyncLoggerService } from '../services/integration-sync-logger.service';
+import { RampApiService } from '../services/ramp-api.service';
 
 interface GoogleWorkspaceUser {
   id: string;
@@ -112,6 +113,7 @@ export class SyncController {
     private readonly oauthCredentialsService: OAuthCredentialsService,
     private readonly rampRoleMappingService: RampRoleMappingService,
     private readonly syncLoggerService: IntegrationSyncLoggerService,
+    private readonly rampApiService: RampApiService,
   ) {}
 
   /**
@@ -1055,169 +1057,10 @@ export class SyncController {
     connection: { variables: unknown },
     logId: string,
   ) {
-    const manifest = getManifest('ramp');
-    if (!manifest) {
-      throw new HttpException(
-        'Ramp manifest not found',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    const accessToken = await this.rampApiService.getAccessToken(connectionId, organizationId);
 
-    let credentials =
-      await this.credentialVaultService.getDecryptedCredentials(connectionId);
-
-    if (!credentials?.access_token) {
-      throw new HttpException(
-        'No valid credentials found. Please reconnect the integration.',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    const oauthConfig =
-      manifest.auth.type === 'oauth2' ? manifest.auth.config : null;
-
-    if (oauthConfig?.supportsRefreshToken && credentials.refresh_token) {
-      try {
-        const oauthCredentials =
-          await this.oauthCredentialsService.getCredentials(
-            'ramp',
-            organizationId,
-          );
-
-        if (oauthCredentials) {
-          const newToken = await this.credentialVaultService.refreshOAuthTokens(
-            connectionId,
-            {
-              tokenUrl: oauthConfig.tokenUrl,
-              refreshUrl: oauthConfig.refreshUrl,
-              clientId: oauthCredentials.clientId,
-              clientSecret: oauthCredentials.clientSecret,
-              clientAuthMethod: oauthConfig.clientAuthMethod,
-            },
-          );
-          if (newToken) {
-            credentials =
-              await this.credentialVaultService.getDecryptedCredentials(
-                connectionId,
-              );
-            if (!credentials?.access_token) {
-              throw new Error('Failed to get refreshed credentials');
-            }
-            this.logger.log('Successfully refreshed Ramp OAuth token');
-          }
-        }
-      } catch (refreshError) {
-        this.logger.warn(
-          `Token refresh failed, trying with existing token: ${refreshError}`,
-        );
-      }
-    }
-
-    const accessToken = credentials?.access_token;
-    if (!accessToken) {
-      throw new HttpException(
-        'No valid credentials found. Please reconnect the integration.',
-        HttpStatus.UNAUTHORIZED,
-      );
-    }
-
-    const MAX_RETRIES = 3;
-
-    const fetchRampUsers = async (status?: RampUserStatus) => {
-      const users: RampUser[] = [];
-      let nextUrl: string | null = null;
-
-      try {
-        do {
-          const url = nextUrl
-            ? new URL(nextUrl)
-            : new URL('https://demo-api.ramp.com/developer/v1/users');
-          if (!nextUrl) {
-            url.searchParams.set('page_size', '100');
-            if (status) {
-              url.searchParams.set('status', status);
-            }
-          }
-
-          let response: Response | null = null;
-          for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-            response = await fetch(url.toString(), {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-              },
-            });
-
-            if (
-              response.status === 429 ||
-              (response.status >= 500 && response.status < 600)
-            ) {
-              const retryAfter = response.headers.get('Retry-After');
-              const delay = retryAfter
-                ? parseInt(retryAfter, 10) * 1000
-                : Math.min(1000 * 2 ** attempt, 30000);
-              this.logger.warn(
-                `Ramp API returned ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`,
-              );
-              await new Promise((r) => setTimeout(r, delay));
-              continue;
-            }
-
-            break;
-          }
-
-          if (!response) {
-            throw new HttpException(
-              'Failed to fetch users from Ramp',
-              HttpStatus.BAD_GATEWAY,
-            );
-          }
-
-          if (!response.ok) {
-            if (response.status === 401) {
-              throw new HttpException(
-                'Ramp credentials expired. Please reconnect.',
-                HttpStatus.UNAUTHORIZED,
-              );
-            }
-            if (response.status === 403) {
-              throw new HttpException(
-                'Ramp access denied. Ensure users:read scope is granted.',
-                HttpStatus.FORBIDDEN,
-              );
-            }
-
-            const errorText = await response.text();
-            this.logger.error(
-              `Ramp API error: ${response.status} ${response.statusText} - ${errorText}`,
-            );
-            throw new HttpException(
-              'Failed to fetch users from Ramp',
-              HttpStatus.BAD_GATEWAY,
-            );
-          }
-
-          const data: RampUsersResponse = await response.json();
-          if (data.data?.length) {
-            users.push(...data.data);
-          }
-
-          nextUrl = data.page?.next ?? null;
-        } while (nextUrl);
-      } catch (error) {
-        if (error instanceof HttpException) throw error;
-        this.logger.error(`Error fetching Ramp users: ${error}`);
-        throw new HttpException(
-          'Failed to fetch users from Ramp',
-          HttpStatus.BAD_GATEWAY,
-        );
-      }
-
-      return users;
-    };
-
-    const baseUsers = await fetchRampUsers();
-    const suspendedUsers = await fetchRampUsers('USER_SUSPENDED');
+    const baseUsers = await this.rampApiService.fetchUsers(accessToken);
+    const suspendedUsers = await this.rampApiService.fetchUsers(accessToken, 'USER_SUSPENDED');
     const users = [...baseUsers, ...suspendedUsers];
 
     // Filter out non-syncable statuses (pending invites, onboarding, expired)
@@ -1371,6 +1214,7 @@ export class SyncController {
 
     const results = {
       imported: 0,
+      updated: 0,
       skipped: 0,
       deactivated: 0,
       reactivated: 0,
@@ -1379,6 +1223,7 @@ export class SyncController {
         email: string;
         status:
           | 'imported'
+          | 'updated'
           | 'skipped'
           | 'deactivated'
           | 'reactivated'
@@ -1466,15 +1311,21 @@ export class SyncController {
               where: { id: existingMember.id },
               data: updateData,
             });
-            results.skipped++;
-            results.details.push({
-              email: normalizedEmail,
-              status: 'skipped',
-              reason:
-                updateData.role
-                  ? `Role updated to ${mappedRole}`
-                  : 'Already a member',
-            });
+            if (updateData.role) {
+              results.updated++;
+              results.details.push({
+                email: normalizedEmail,
+                status: 'updated',
+                reason: `Role updated to ${mappedRole}`,
+              });
+            } else {
+              results.skipped++;
+              results.details.push({
+                email: normalizedEmail,
+                status: 'skipped',
+                reason: 'Already a member (external ID backfilled)',
+              });
+            }
           } else {
             results.skipped++;
             results.details.push({
@@ -1605,12 +1456,18 @@ export class SyncController {
           );
         } catch (error) {
           this.logger.error(`Error deactivating member: ${error}`);
+          results.errors++;
+          results.details.push({
+            email: memberEmail,
+            status: 'error',
+            reason: `Failed to deactivate: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          });
         }
       }
     }
 
     this.logger.log(
-      `Ramp sync complete: ${results.imported} imported, ${results.reactivated} reactivated, ${results.deactivated} deactivated, ${results.skipped} skipped, ${results.errors} errors`,
+      `Ramp sync complete: ${results.imported} imported, ${results.updated} updated, ${results.reactivated} reactivated, ${results.deactivated} deactivated, ${results.skipped} skipped, ${results.errors} errors`,
     );
 
     // Update lastSyncAt on the connection
@@ -1629,6 +1486,7 @@ export class SyncController {
 
     await this.syncLoggerService.completeLog(logId, {
       imported: results.imported,
+      updated: results.updated,
       deactivated: results.deactivated,
       reactivated: results.reactivated,
       skipped: results.skipped,

@@ -14,6 +14,7 @@ interface SyncResult {
   requiresRoleMapping?: boolean;
   totalFound: number;
   imported: number;
+  updated: number;
   reactivated: number;
   deactivated: number;
   skipped: number;
@@ -191,10 +192,13 @@ export const useEmployeeSync = ({
       }
 
       if (response.data?.success) {
-        const { imported, reactivated, deactivated, skipped, errors } = response.data;
+        const { imported, updated, reactivated, deactivated, skipped, errors } = response.data;
 
         if (imported > 0) {
           toast.success(`Imported ${imported} new employee${imported > 1 ? 's' : ''}`);
+        }
+        if (updated > 0) {
+          toast.success(`Updated roles for ${updated} employee${updated > 1 ? 's' : ''}`);
         }
         if (reactivated > 0) {
           toast.success(`Reactivated ${reactivated} employee${reactivated > 1 ? 's' : ''}`);
@@ -204,7 +208,7 @@ export const useEmployeeSync = ({
             `Deactivated ${deactivated} employee${deactivated > 1 ? 's' : ''} (no longer in ${config.name})`,
           );
         }
-        if (imported === 0 && reactivated === 0 && deactivated === 0 && skipped > 0) {
+        if (imported === 0 && updated === 0 && reactivated === 0 && deactivated === 0 && skipped > 0) {
           toast.info('All employees are already synced');
         }
         if (errors > 0) {

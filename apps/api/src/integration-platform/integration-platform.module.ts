@@ -29,6 +29,7 @@ import { DynamicIntegrationRepository } from './repositories/dynamic-integration
 import { DynamicCheckRepository } from './repositories/dynamic-check.repository';
 import { RampRoleMappingService } from './services/ramp-role-mapping.service';
 import { IntegrationSyncLoggerService } from './services/integration-sync-logger.service';
+import { RampApiService } from './services/ramp-api.service';
 
 @Module({
   imports: [AuthModule],
@@ -56,6 +57,7 @@ import { IntegrationSyncLoggerService } from './services/integration-sync-logger
     DynamicManifestLoaderService,
     RampRoleMappingService,
     IntegrationSyncLoggerService,
+    RampApiService,
     // Repositories
     ProviderRepository,
     ConnectionRepository,
