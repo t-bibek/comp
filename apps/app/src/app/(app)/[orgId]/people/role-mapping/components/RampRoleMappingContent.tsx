@@ -61,25 +61,36 @@ export function RampRoleMappingContent({
         setMapping(initialMapping);
         savedMappingRef.current = JSON.stringify(initialMapping);
       }
-    } catch {
+    } catch (error) {
       toast.error('Failed to load Ramp roles');
+      throw error;
     }
   };
 
   useEffect(() => {
     const load = async () => {
       setIsLoading(true);
-      await fetchRoles();
-      setIsLoading(false);
+      try {
+        await fetchRoles();
+      } catch {
+        // error toast already shown by fetchRoles
+      } finally {
+        setIsLoading(false);
+      }
     };
     load();
   }, [organizationId, connectionId]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchRoles(true);
-    setIsRefreshing(false);
-    toast.success('Roles refreshed from Ramp');
+    try {
+      await fetchRoles(true);
+      toast.success('Roles refreshed from Ramp');
+    } catch {
+      // fetchRoles already shows error toast
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleEntryChange = (index: number, updated: RoleMappingEntry) => {
