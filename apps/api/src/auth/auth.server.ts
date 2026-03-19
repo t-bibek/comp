@@ -32,6 +32,9 @@ function getCookieDomain(): string | undefined {
   if (baseUrl.includes('trycomp.ai')) {
     return '.trycomp.ai';
   }
+  if (baseUrl.includes('comp.usebubbles.com')) {
+    return '.comp.usebubbles.com';
+  }
   return undefined;
 }
 
