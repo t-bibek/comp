@@ -1,5 +1,8 @@
 import path from 'path';
-import './src/env.mjs';
+
+if (!process.env.SKIP_ENV_VALIDATION) {
+  await import('./src/env.mjs');
+}
 
 const isStandalone = process.env.NEXT_OUTPUT_STANDALONE === 'true';
 

@@ -2,11 +2,15 @@ import { PrismaPlugin } from '@prisma/nextjs-monorepo-workaround-plugin';
 import { withBotId } from 'botid/next/config';
 import type { NextConfig } from 'next';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-import './src/env.mjs';
+if (!process.env.SKIP_ENV_VALIDATION) {
+  await import('./src/env.mjs');
+}
 
 const isStandalone = process.env.NEXT_OUTPUT_STANDALONE === 'true';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.join(__dirname, '..', '..');
 
 const config: NextConfig = {
