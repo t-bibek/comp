@@ -8,9 +8,15 @@ const mockHasPermission = jest.fn();
 jest.mock('./auth.server', () => ({
   auth: {
     api: {
-      hasPermission: (...args) => mockHasPermission(...args),
+      hasPermission: (...args: unknown[]) => mockHasPermission(...args),
     },
   },
+}));
+
+// Mock @trycompai/auth to avoid ESM issues with better-auth
+jest.mock('@trycompai/auth', () => ({
+  RESTRICTED_ROLES: ['employee', 'contractor'],
+  PRIVILEGED_ROLES: ['owner', 'admin', 'auditor'],
 }));
 
 describe('PermissionGuard', () => {
@@ -20,18 +26,24 @@ describe('PermissionGuard', () => {
   const createMockExecutionContext = (
     request: Partial<{
       isApiKey: boolean;
+      apiKeyScopes: string[] | undefined;
       userRoles: string[] | null;
       headers: Record<string, string>;
       organizationId: string;
+      method: string;
+      url: string;
     }>,
   ): ExecutionContext => {
     return {
       switchToHttp: () => ({
         getRequest: () => ({
           isApiKey: false,
+          apiKeyScopes: undefined,
           userRoles: null,
           headers: {},
           organizationId: 'org_123',
+          method: 'GET',
+          url: '/v1/test',
           ...request,
         }),
       }),
@@ -60,15 +72,102 @@ describe('PermissionGuard', () => {
       expect(result).toBe(true);
     });
 
-    it('should allow access for API keys (with warning)', async () => {
+    it('should allow access for legacy API keys with empty scopes before deprecation date', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-04-19T23:59:59Z'));
+
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
         { resource: 'control', actions: ['delete'] },
       ]);
 
-      const context = createMockExecutionContext({ isApiKey: true });
-      const result = await guard.canActivate(context);
+      const context = createMockExecutionContext({
+        isApiKey: true,
+        apiKeyScopes: [],
+        method: 'GET',
+        url: '/v1/controls',
+      });
 
+      const result = await guard.canActivate(context);
       expect(result).toBe(true);
+
+      jest.useRealTimers();
+    });
+
+    it('should deny access for legacy API keys with empty scopes after deprecation date', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-04-20T00:00:00Z'));
+
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
+        { resource: 'control', actions: ['read'] },
+      ]);
+
+      const context = createMockExecutionContext({
+        isApiKey: true,
+        apiKeyScopes: [],
+        method: 'GET',
+        url: '/v1/controls',
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      jest.useRealTimers();
+    });
+
+    it('should deny access for legacy API keys with undefined scopes after deprecation date', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-05-01T00:00:00Z'));
+
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
+        { resource: 'control', actions: ['read'] },
+      ]);
+
+      const context = createMockExecutionContext({
+        isApiKey: true,
+        apiKeyScopes: undefined,
+        method: 'GET',
+        url: '/v1/controls',
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
+
+      jest.useRealTimers();
+    });
+
+    it('should allow access for API keys with matching scopes', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
+        { resource: 'control', actions: ['read'] },
+      ]);
+
+      const context = createMockExecutionContext({
+        isApiKey: true,
+        apiKeyScopes: ['control:read'],
+        method: 'GET',
+        url: '/v1/controls',
+      });
+
+      const result = await guard.canActivate(context);
+      expect(result).toBe(true);
+    });
+
+    it('should deny access for API keys with non-matching scopes', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue([
+        { resource: 'control', actions: ['read'] },
+      ]);
+
+      const context = createMockExecutionContext({
+        isApiKey: true,
+        apiKeyScopes: ['risk:read'],
+        method: 'GET',
+        url: '/v1/controls',
+      });
+
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should deny access when no authorization or cookie header present', async () => {
