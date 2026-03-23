@@ -1,12 +1,13 @@
 import { TASK_TEMPLATES } from '../../../task-mappings';
 import type { CheckContext, IntegrationCheck } from '../../../types';
+import { matchesSyncFilterTerms, parseSyncFilterTerms } from '../../../sync-filter/email-exclusion-terms';
 import type {
   GoogleWorkspaceRoleAssignmentsResponse,
   GoogleWorkspaceRolesResponse,
   GoogleWorkspaceUser,
   GoogleWorkspaceUsersResponse,
 } from '../types';
-import { includeSuspendedVariable } from '../variables';
+import { includeSuspendedVariable, targetOrgUnitsVariable } from '../variables';
 
 /**
  * Employee Access Review Check
@@ -18,11 +19,17 @@ export const employeeAccessCheck: IntegrationCheck = {
   name: 'Employee Access Review',
   description: 'Fetch all employees and their roles from Google Workspace for access review',
   taskMapping: TASK_TEMPLATES.employeeAccess,
-  variables: [includeSuspendedVariable],
+  variables: [targetOrgUnitsVariable, includeSuspendedVariable],
 
   run: async (ctx: CheckContext) => {
     ctx.log('Starting Google Workspace Employee Access check');
 
+    const targetOrgUnits = ctx.variables.target_org_units as string[] | undefined;
+    const excludedTerms = parseSyncFilterTerms(
+      ctx.variables.sync_excluded_emails ?? ctx.variables.excluded_emails,
+    );
+    const includedTerms = parseSyncFilterTerms(ctx.variables.sync_included_emails);
+    const userFilterMode = ctx.variables.sync_user_filter_mode as 'all' | 'exclude' | 'include' | undefined;
     const includeSuspended = ctx.variables.include_suspended === 'true';
 
     // Fetch all roles first to build a role ID -> name map
@@ -123,7 +130,7 @@ export const employeeAccessCheck: IntegrationCheck = {
 
     ctx.log(`Fetched ${allUsers.length} total users`);
 
-    // Filter users
+    // Filter users (same rules as 2FA check and employee sync)
     const activeUsers = allUsers.filter((user) => {
       if (user.suspended && !includeSuspended) {
         return false;
@@ -131,6 +138,30 @@ export const employeeAccessCheck: IntegrationCheck = {
       if (user.archived) {
         return false;
       }
+
+      if (targetOrgUnits && targetOrgUnits.length > 0) {
+        const userOu = user.orgUnitPath ?? '/';
+        const inOrgUnit = targetOrgUnits.some(
+          (ou) => ou === '/' || userOu === ou || userOu.startsWith(`${ou}/`),
+        );
+        if (!inOrgUnit) {
+          return false;
+        }
+      }
+
+      const email = user.primaryEmail.toLowerCase();
+
+      if (userFilterMode === 'exclude' && excludedTerms.length > 0) {
+        return !matchesSyncFilterTerms(email, excludedTerms);
+      }
+
+      if (userFilterMode === 'include') {
+        if (includedTerms.length === 0) {
+          return true;
+        }
+        return matchesSyncFilterTerms(email, includedTerms);
+      }
+
       return true;
     });
 
