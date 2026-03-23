@@ -1,6 +1,9 @@
 import { TASK_TEMPLATES } from '../../../task-mappings';
 import type { CheckContext, IntegrationCheck } from '../../../types';
-import { matchesSyncFilterTerms, parseSyncFilterTerms } from '../../../sync-filter/email-exclusion-terms';
+import {
+  filterGoogleWorkspaceUsersForChecks,
+  parseGoogleWorkspaceCheckUserFilter,
+} from '../check-user-filter';
 import type { GoogleWorkspaceUser, GoogleWorkspaceUsersResponse } from '../types';
 import { includeSuspendedVariable, targetOrgUnitsVariable } from '../variables';
 
@@ -18,13 +21,7 @@ export const twoFactorAuthCheck: IntegrationCheck = {
   run: async (ctx: CheckContext) => {
     ctx.log('Starting Google Workspace 2FA check');
 
-    const targetOrgUnits = ctx.variables.target_org_units as string[] | undefined;
-    const excludedTerms = parseSyncFilterTerms(
-      ctx.variables.sync_excluded_emails ?? ctx.variables.excluded_emails,
-    );
-    const includedTerms = parseSyncFilterTerms(ctx.variables.sync_included_emails);
-    const userFilterMode = ctx.variables.sync_user_filter_mode as 'all' | 'exclude' | 'include' | undefined;
-    const includeSuspended = ctx.variables.include_suspended === 'true';
+    const userFilterConfig = parseGoogleWorkspaceCheckUserFilter(ctx.variables);
 
     // Fetch all users with pagination
     const allUsers: GoogleWorkspaceUser[] = [];
@@ -54,44 +51,8 @@ export const twoFactorAuthCheck: IntegrationCheck = {
 
     ctx.log(`Fetched ${allUsers.length} total users`);
 
-    // Filter users based on settings
-    const usersToCheck = allUsers.filter((user) => {
-      // Skip suspended users unless explicitly included
-      if (user.suspended && !includeSuspended) {
-        return false;
-      }
-
-      // Skip archived users
-      if (user.archived) {
-        return false;
-      }
-
-      // Org units first, then sync email filter — same order as employee sync (sync.controller.ts)
-      if (targetOrgUnits && targetOrgUnits.length > 0) {
-        const userOu = user.orgUnitPath ?? '/';
-        const inOrgUnit = targetOrgUnits.some(
-          (ou) => ou === '/' || userOu === ou || userOu.startsWith(`${ou}/`),
-        );
-        if (!inOrgUnit) {
-          return false;
-        }
-      }
-
-      const email = user.primaryEmail.toLowerCase();
-
-      if (userFilterMode === 'exclude' && excludedTerms.length > 0) {
-        return !matchesSyncFilterTerms(email, excludedTerms);
-      }
-
-      if (userFilterMode === 'include') {
-        if (includedTerms.length === 0) {
-          return true;
-        }
-        return matchesSyncFilterTerms(email, includedTerms);
-      }
-
-      return true;
-    });
+    // Org units + sync email filter — same rules as employee sync (sync.controller.ts)
+    const usersToCheck = filterGoogleWorkspaceUsersForChecks(allUsers, userFilterConfig);
 
     ctx.log(`Checking ${usersToCheck.length} users after filtering`);
 
