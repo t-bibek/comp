@@ -422,7 +422,7 @@ async function parseQuestionsWithClaude(
     logger.info('Claude parsing complete', {
       questionCount: result.questions?.length || 0,
       durationMs: Date.now() - startTime,
-      model: 'claude-3-5-sonnet',
+      model: 'claude-sonnet-4-6',
     });
 
     return (result.questions || [])
