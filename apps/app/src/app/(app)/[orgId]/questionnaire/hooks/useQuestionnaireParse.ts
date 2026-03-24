@@ -152,7 +152,8 @@ export function useQuestionnaireParse({
           return;
         }
 
-        // Start tracking the async task
+        // Upload done, now tracking async parsing
+        setUploadStatus('idle');
         setRunId(response.data.runId);
         setRunToken(response.data.publicAccessToken);
       } catch (error) {
