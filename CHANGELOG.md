@@ -1,3 +1,10 @@
+## [3.11.4](https://github.com/trycompai/comp/compare/v3.11.3...v3.11.4) (2026-03-25)
+
+
+### Bug Fixes
+
+* **vendors:** fix PATCH 400 error for vendors with empty descriptions ([cdc71c7](https://github.com/trycompai/comp/commit/cdc71c7f69b59090a8407f3bd10c1adb98defce5))
+
 ## [3.11.3](https://github.com/trycompai/comp/compare/v3.11.2...v3.11.3) (2026-03-25)
 
 
