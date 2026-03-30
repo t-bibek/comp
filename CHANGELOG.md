@@ -1,3 +1,10 @@
+## [3.12.1](https://github.com/trycompai/comp/compare/v3.12.0...v3.12.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* upload attachments stuck loading ([7dc6bf9](https://github.com/trycompai/comp/commit/7dc6bf9a9da1cc231e59001a4569dff81f1f7b10))
+
 # [3.12.0](https://github.com/trycompai/comp/compare/v3.11.5...v3.12.0) (2026-03-30)
 
 
