@@ -1,3 +1,10 @@
+## [3.14.1](https://github.com/trycompai/comp/compare/v3.14.0...v3.14.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* robust schema resolution in Trigger.dev Prisma extension ([#2442](https://github.com/trycompai/comp/issues/2442)) ([1bde775](https://github.com/trycompai/comp/commit/1bde775b08c7693e987dc1be643fa974c8697ba0))
+
 # [3.14.0](https://github.com/trycompai/comp/compare/v3.13.1...v3.14.0) (2026-04-02)
 
 
