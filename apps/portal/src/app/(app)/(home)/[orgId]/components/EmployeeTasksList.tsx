@@ -2,18 +2,22 @@
 
 import { trainingVideos } from '@/lib/data/training-videos';
 import { useTrainingCompletions } from '@/hooks/use-training-completions';
-import { evidenceFormDefinitionList } from '@trycompai/company';
 import type { Device, EmployeeTrainingVideoCompletion, Member, Policy, PolicyVersion } from '@db';
-import { Accordion, Button, Card, CardContent } from '@trycompai/design-system';
-import { CheckmarkFilled } from '@trycompai/design-system/icons';
+import { Accordion, Button } from '@trycompai/design-system';
 import Link from 'next/link';
 import useSWR from 'swr';
 import type { FleetPolicy, Host } from '../types';
+import { HIPAA_TRAINING_ID } from '@/lib/data/hipaa-training-content';
 import { DeviceAgentAccordionItem } from './tasks/DeviceAgentAccordionItem';
 import { GeneralTrainingAccordionItem } from './tasks/GeneralTrainingAccordionItem';
+import { HipaaTrainingAccordionItem } from './tasks/HipaaTrainingAccordionItem';
 import { PoliciesAccordionItem } from './tasks/PoliciesAccordionItem';
 
-const portalForms = evidenceFormDefinitionList.filter((f) => f.portalAccessible);
+interface PortalForm {
+  type: string;
+  title: string;
+  description: string;
+}
 
 type PolicyWithVersion = Policy & {
   currentVersion?: Pick<PolicyVersion, 'id' | 'content' | 'pdfUrl' | 'version'> | null;
@@ -26,11 +30,13 @@ interface EmployeeTasksListProps {
   member: Member;
   fleetPolicies: FleetPolicy[];
   host: Host | null;
-  agentDevice: Device | null;
+  agentDevices: Device[];
   deviceAgentStepEnabled: boolean;
   securityTrainingStepEnabled: boolean;
+  hasHipaaFramework: boolean;
   whistleblowerReportEnabled: boolean;
   accessRequestFormEnabled: boolean;
+  portalForms: PortalForm[];
 }
 
 export const EmployeeTasksList = ({
@@ -40,11 +46,13 @@ export const EmployeeTasksList = ({
   member,
   fleetPolicies,
   host,
-  agentDevice,
+  agentDevices,
   deviceAgentStepEnabled,
   securityTrainingStepEnabled,
+  hasHipaaFramework,
   whistleblowerReportEnabled,
   accessRequestFormEnabled,
+  portalForms,
 }: EmployeeTasksListProps) => {
   const { completions: trainingCompletions } = useTrainingCompletions({
     fallbackData: trainingVideoCompletions,
@@ -80,7 +88,7 @@ export const EmployeeTasksList = ({
       return res.json();
     },
     {
-      fallbackData: agentDevice ? { devices: [agentDevice] } : { devices: [] },
+      fallbackData: { devices: agentDevices },
       refreshInterval: 30_000,
       revalidateOnFocus: true,
       revalidateOnMount: true,
@@ -91,25 +99,24 @@ export const EmployeeTasksList = ({
     return null;
   }
 
-  // Pick the most recently checked-in device (matching page.tsx ordering: lastCheckIn desc, nulls last)
-  const currentAgentDevice =
-    agentDeviceResponse?.devices
-      ?.sort((a, b) => {
-        if (!a.lastCheckIn && !b.lastCheckIn) return 0;
-        if (!a.lastCheckIn) return 1;
-        if (!b.lastCheckIn) return -1;
-        return new Date(b.lastCheckIn).getTime() - new Date(a.lastCheckIn).getTime();
-      })[0] ?? null;
+  const sortedAgentDevices = [...(agentDeviceResponse?.devices ?? [])].sort(
+    (a, b) => {
+      if (!a.lastCheckIn && !b.lastCheckIn) return 0;
+      if (!a.lastCheckIn) return 1;
+      if (!b.lastCheckIn) return -1;
+      return new Date(b.lastCheckIn).getTime() - new Date(a.lastCheckIn).getTime();
+    },
+  );
 
   // Check completion status
   const hasAcceptedPolicies =
     policies.length === 0 || policies.every((p) => p.signedBy.includes(member.id));
 
   // Device agent takes priority over Fleet for completion
-  const hasAgentDevice = currentAgentDevice !== null;
+  const hasAnyAgentDevice = sortedAgentDevices.length > 0;
   const hasFleetDevice = response.device !== null;
-  const hasCompletedDeviceSetup = hasAgentDevice
-    ? currentAgentDevice.isCompliant
+  const hasCompletedDeviceSetup = hasAnyAgentDevice
+    ? sortedAgentDevices.some((d) => d.isCompliant)
     : hasFleetDevice &&
       (response.fleetPolicies.length === 0 ||
         response.fleetPolicies.every((policy) => policy.response === 'pass'));
@@ -128,10 +135,15 @@ export const EmployeeTasksList = ({
   const hasCompletedGeneralTraining =
     completedGeneralTrainingCount === generalTrainingVideoIds.length;
 
+  const hasCompletedHipaaTraining = trainingCompletions.some(
+    (c) => c.videoId === HIPAA_TRAINING_ID && c.completedAt !== null,
+  );
+
   const completedCount = [
     hasAcceptedPolicies,
     ...(deviceAgentStepEnabled ? [hasCompletedDeviceSetup] : []),
     ...(securityTrainingStepEnabled ? [hasCompletedGeneralTraining] : []),
+    ...(hasHipaaFramework ? [hasCompletedHipaaTraining] : []),
   ].filter(Boolean).length;
 
   const accordionItems = [
@@ -147,7 +159,7 @@ export const EmployeeTasksList = ({
               <DeviceAgentAccordionItem
                 member={member}
                 host={response.device}
-                agentDevice={currentAgentDevice}
+                agentDevices={sortedAgentDevices}
                 fleetPolicies={response.fleetPolicies}
                 isLoading={isValidating}
                 fetchFleetPolicies={fetchFleetPolicies}
@@ -166,6 +178,14 @@ export const EmployeeTasksList = ({
           },
         ]
       : []),
+    ...(hasHipaaFramework
+      ? [
+          {
+            title: 'Complete HIPAA security awareness training',
+            content: <HipaaTrainingAccordionItem />,
+          },
+        ]
+      : []),
   ];
   const visiblePortalForms = portalForms.filter((form) => {
     if (form.type === 'whistleblower-report') return whistleblowerReportEnabled;
@@ -173,48 +193,27 @@ export const EmployeeTasksList = ({
     return true;
   });
 
-  const allCompleted = completedCount === accordionItems.length;
-
   return (
     <div className="space-y-4">
-      {allCompleted ? (
-        <Card>
-          <CardContent>
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="text-primary mb-4">
-                <CheckmarkFilled size={48} />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">You're all set!</h2>
-              <p className="text-muted-foreground text-sm max-w-md">
-                You've completed all required tasks. No further action is needed at this time.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {/* Progress indicator */}
-          <div>
-            <div className="text-muted-foreground text-sm">
-              {completedCount} of {accordionItems.length} tasks completed
-            </div>
-            <div className="w-full bg-muted rounded-full h-2.5">
-              <div
-                className="bg-primary h-full rounded-full"
-                style={{ width: `${(completedCount / accordionItems.length) * 100}%` }}
-              ></div>
-            </div>
-          </div>
+      <div>
+        <div className="text-muted-foreground text-sm">
+          {completedCount} of {accordionItems.length} tasks completed
+        </div>
+        <div className="w-full bg-muted rounded-full h-2.5">
+          <div
+            className="bg-primary h-full rounded-full"
+            style={{ width: `${(completedCount / accordionItems.length) * 100}%` }}
+          ></div>
+        </div>
+      </div>
 
-          <div className="space-y-3">
-            <Accordion>
-              {accordionItems.map((item, idx) => (
-                <div key={item.title ?? idx}>{item.content}</div>
-              ))}
-            </Accordion>
-          </div>
-        </>
-      )}
+      <div className="space-y-3">
+        <Accordion>
+          {accordionItems.map((item, idx) => (
+            <div key={item.title ?? idx}>{item.content}</div>
+          ))}
+        </Accordion>
+      </div>
 
       {/* Company forms */}
       {visiblePortalForms.length > 0 && (
