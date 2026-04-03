@@ -1,3 +1,10 @@
+## [3.15.1](https://github.com/trycompai/comp/compare/v3.15.0...v3.15.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* fix trust portal domain verification ([c21c656](https://github.com/trycompai/comp/commit/c21c6565d94de0939e772d963c32652da5672438))
+
 # [3.15.0](https://github.com/trycompai/comp/compare/v3.14.1...v3.15.0) (2026-04-03)
 
 
