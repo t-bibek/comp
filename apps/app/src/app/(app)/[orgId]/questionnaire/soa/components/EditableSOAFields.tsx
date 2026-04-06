@@ -21,6 +21,10 @@ import {
 import { X, Loader2, Edit2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSOADocument } from '../../hooks/useSOADocument';
+import { ApplicableReadOnlyDisplay, ApplicableSwatchRow } from './ApplicableSwatch';
+import type { SOAFieldSavePayload } from './soa-field-types';
+
+export type { SOAFieldSavePayload, SOATableAnswerData } from './soa-field-types';
 
 interface EditableSOAFieldsProps {
   documentId: string;
@@ -31,7 +35,8 @@ interface EditableSOAFieldsProps {
   isControl7?: boolean;
   isFullyRemote?: boolean;
   organizationId: string;
-  onUpdate?: (savedAnswer: string | null) => void;
+  /** Called after a successful save so the table can override autofill/cache without a full reload. */
+  onUpdate?: (payload: SOAFieldSavePayload) => void;
 }
 
 export function EditableSOAFields({
@@ -54,14 +59,6 @@ export function EditableSOAFields({
   const justificationTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [isJustificationDialogOpen, setJustificationDialogOpen] = useState(false);
   const dialogSavedRef = useRef(false);
-  const badgeBaseClasses =
-    'inline-flex items-center justify-center rounded-full border px-3 py-1 text-xs font-medium tracking-wide w-[3rem]';
-  const badgeClasses =
-    isApplicable === true
-      ? `${badgeBaseClasses} bg-primary text-primary-foreground border-primary/70 shadow-sm shadow-primary/40`
-      : isApplicable === false
-        ? `${badgeBaseClasses} bg-destructive text-destructive-foreground border-destructive/70 shadow-sm shadow-destructive/40`
-        : `${badgeBaseClasses} bg-muted text-muted-foreground border-transparent`;
 
   useEffect(() => {
     setIsApplicable(initialIsApplicable);
@@ -101,9 +98,10 @@ export function EditableSOAFields({
       setIsEditing(false);
       setError(null);
       toast.success('Answer saved successfully');
-      // Call onUpdate with the saved answer value to update parent state optimistically
-      const savedAnswer = nextIsApplicable === false ? nextJustification : null;
-      onUpdate?.(savedAnswer);
+      onUpdate?.({
+        isApplicable: nextIsApplicable,
+        justification: nextIsApplicable === false ? nextJustification : null,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save answer';
       if (!isJustificationDialogOpen) {
@@ -128,11 +126,6 @@ export function EditableSOAFields({
 
   const handleEditClick = () => {
     setIsEditing(true);
-    if (isApplicable === false) {
-      setJustificationDialogOpen(true);
-    } else {
-      setJustificationDialogOpen(false);
-    }
   };
 
   const handleSelectChange = (value: 'yes' | 'no' | 'null') => {
@@ -186,9 +179,7 @@ export function EditableSOAFields({
     // Display mode
     return (
       <div className="flex w-full flex-col items-center gap-2 text-center">
-        <span className={`${badgeClasses} uppercase`}>
-          {isApplicable === true ? 'YES' : isApplicable === false ? 'NO' : '\u2014'}
-        </span>
+        <ApplicableReadOnlyDisplay isApplicable={isApplicable} />
       </div>
     );
   }
@@ -196,9 +187,7 @@ export function EditableSOAFields({
   if (!isEditing) {
     return (
       <div className="group relative flex w-full items-center justify-center">
-        <span className={`${badgeClasses} uppercase`}>
-          {isApplicable === true ? 'YES' : isApplicable === false ? 'NO' : '\u2014'}
-        </span>
+        <ApplicableReadOnlyDisplay isApplicable={isApplicable} />
         <button
           type="button"
           onClick={handleEditClick}
@@ -223,10 +212,14 @@ export function EditableSOAFields({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="null" disabled>
-              {'\u2014'}
+              <ApplicableSwatchRow isApplicable={null} />
             </SelectItem>
-            <SelectItem value="yes">YES</SelectItem>
-            <SelectItem value="no">NO</SelectItem>
+            <SelectItem value="yes">
+              <ApplicableSwatchRow isApplicable />
+            </SelectItem>
+            <SelectItem value="no">
+              <ApplicableSwatchRow isApplicable={false} />
+            </SelectItem>
           </SelectContent>
         </Select>
         <Button
