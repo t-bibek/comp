@@ -1,3 +1,10 @@
+## [3.16.2](https://github.com/trycompai/comp/compare/v3.16.1...v3.16.2) (2026-04-06)
+
+
+### Bug Fixes
+
+* fix search for integrations ([b911083](https://github.com/trycompai/comp/commit/b911083f45fdc86853216f512cbb6203ec00f4a9))
+
 ## [3.16.1](https://github.com/trycompai/comp/compare/v3.16.0...v3.16.1) (2026-04-06)
 
 
