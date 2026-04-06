@@ -1,3 +1,10 @@
+## [3.16.1](https://github.com/trycompai/comp/compare/v3.16.0...v3.16.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* **people:** include HIPAA training in people table task counts and show per-category breakdown ([#2464](https://github.com/trycompai/comp/issues/2464)) ([8ac2416](https://github.com/trycompai/comp/commit/8ac24165fe0f4f61c75b00b6866eb02af0f4f363))
+
 # [3.16.0](https://github.com/trycompai/comp/compare/v3.15.1...v3.16.0) (2026-04-06)
 
 
