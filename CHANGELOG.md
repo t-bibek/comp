@@ -1,3 +1,17 @@
+# [3.16.0](https://github.com/trycompai/comp/compare/v3.15.1...v3.16.0) (2026-04-06)
+
+
+### Bug Fixes
+
+* **frameworks:** remove max-w constraint that clips description text in tables ([#2461](https://github.com/trycompai/comp/issues/2461)) ([218a789](https://github.com/trycompai/comp/commit/218a78908eb8cd7affe68dd7329c4b6f9f1f16f3))
+* Statement of Applicability only allows you to change answers from Yes to No and not the other way around ([d164c77](https://github.com/trycompai/comp/commit/d164c77e32c304153713647e32b410f9e7233498))
+* **trust-portal:** replace networkcalc.com DNS checks with Node built-in resolver ([#2463](https://github.com/trycompai/comp/issues/2463)) ([32a97fa](https://github.com/trycompai/comp/commit/32a97fab8d89dc90745bc9663054280fe3f7658b))
+
+
+### Features
+
+* enhance vendor research and improve ui for it ([7a08b2c](https://github.com/trycompai/comp/commit/7a08b2c3d4fd411e4c99b8885ba795874f32bceb))
+
 ## [3.15.1](https://github.com/trycompai/comp/compare/v3.15.0...v3.15.1) (2026-04-03)
 
 
