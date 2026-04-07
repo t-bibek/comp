@@ -134,7 +134,6 @@ export const appAvailabilityCheck: IntegrationCheck = {
           });
         }
       } catch (error) {
-        checkedCount++;
         ctx.fail({
           title: `Failed to check: ${project.name}`,
           resourceType: 'project',
