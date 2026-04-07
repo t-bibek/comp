@@ -77,11 +77,12 @@ const rbacMatrixDataSchema = z
   .superRefine((data, ctx) => {
     if (data.matrixFile) return;
 
-    const filledRows = (data.matrixRows ?? []).filter((row) =>
-      Object.values(row).some((v) => v.trim().length > 0),
-    );
+    const rows = data.matrixRows ?? [];
+    const isRowEmpty = (row: Record<string, string>) =>
+      Object.values(row).every((v) => v.trim().length === 0);
 
-    if (filledRows.length === 0) {
+    const hasFilledRow = rows.some((row) => !isRowEmpty(row));
+    if (!hasFilledRow) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Enter at least one RBAC row or upload a spreadsheet',
@@ -90,8 +91,9 @@ const rbacMatrixDataSchema = z
       return;
     }
 
-    for (let i = 0; i < filledRows.length; i++) {
-      const result = rbacMatrixRowSchema.safeParse(filledRows[i]);
+    for (let i = 0; i < rows.length; i++) {
+      if (isRowEmpty(rows[i])) continue;
+      const result = rbacMatrixRowSchema.safeParse(rows[i]);
       if (!result.success) {
         for (const issue of result.error.issues) {
           ctx.addIssue({
