@@ -1,3 +1,24 @@
+# [3.17.0](https://github.com/trycompai/comp/compare/v3.16.2...v3.17.0) (2026-04-07)
+
+
+### Bug Fixes
+
+* **ci:** pin bun version in trigger workflows and regenerate lockfile ([4650bd9](https://github.com/trycompai/comp/commit/4650bd9251ad1db5836f9cf1ce8505ad4ccaf8da))
+* **ci:** pin bun version in trigger workflows and regenerate lockfile ([#2478](https://github.com/trycompai/comp/issues/2478)) ([3574357](https://github.com/trycompai/comp/commit/3574357caef1966953515a9dd08302312d77a76b))
+* **documents:** allow CSV and Excel file uploads for evidence forms ([52bb3f6](https://github.com/trycompai/comp/commit/52bb3f6255b6f8f06261c02f23def8da7afdcf6a))
+* **documents:** fix RBAC schema, matrix validation, and step 3 MIME mapper ([c440317](https://github.com/trycompai/comp/commit/c440317bfa66d7667b67b4a196849461ce9109b0))
+* **documents:** fix TS strict index access on matrix row ([77d71bd](https://github.com/trycompai/comp/commit/77d71bd6b2081e00b2fa9fd961e87e1aeecee229))
+* **documents:** use lenient row schema so file upload bypasses row validation ([f06febb](https://github.com/trycompai/comp/commit/f06febb6816536dec825941f61cd95b55709cdfa))
+* **documents:** use original row index for validation error paths ([7ded778](https://github.com/trycompai/comp/commit/7ded778e4d71c88563645e4c71a4c8d433785901))
+* **google-workspace:** clarify that email filter variables apply to checks too, not just sync ([cb0e6af](https://github.com/trycompai/comp/commit/cb0e6afe49a5f8c7a7e7d905a826fd51494814ac))
+* **notifications:** dont send task reminders to employees ([5a90324](https://github.com/trycompai/comp/commit/5a903240bb33fe9fab508062791f6d211ce1d566))
+* **portal:** sync activeOrganizationId when navigating between orgs ([#2468](https://github.com/trycompai/comp/issues/2468)) ([e1b29a5](https://github.com/trycompai/comp/commit/e1b29a50a85ca420b7e22a149e26600802545b27))
+
+
+### Features
+
+* **trigger:** add org tags to all trigger job runs ([#2476](https://github.com/trycompai/comp/issues/2476)) ([b3d26e7](https://github.com/trycompai/comp/commit/b3d26e72c8ad7f1134bb6204378ee95dc83a5f04))
+
 ## [3.16.2](https://github.com/trycompai/comp/compare/v3.16.1...v3.16.2) (2026-04-06)
 
 
