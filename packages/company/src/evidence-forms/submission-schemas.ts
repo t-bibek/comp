@@ -92,8 +92,9 @@ const rbacMatrixDataSchema = z
     }
 
     for (let i = 0; i < rows.length; i++) {
-      if (isRowEmpty(rows[i])) continue;
-      const result = rbacMatrixRowSchema.safeParse(rows[i]);
+      const row = rows[i];
+      if (!row || isRowEmpty(row)) continue;
+      const result = rbacMatrixRowSchema.safeParse(row);
       if (!result.success) {
         for (const issue of result.error.issues) {
           ctx.addIssue({
