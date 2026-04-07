@@ -59,15 +59,15 @@ export const includeSuspendedVariable: CheckVariable = {
  */
 export const syncUserFilterModeVariable: CheckVariable = {
   id: 'sync_user_filter_mode',
-  label: 'Employee Sync Mode',
-  helpText: 'Choose which Google Workspace users Comp should sync',
+  label: 'User Filter Mode',
+  helpText: 'Choose which Google Workspace users to include in sync and security checks',
   type: 'select',
   required: false,
   default: 'all',
   options: [
-    { value: 'all', label: 'Sync all users' },
-    { value: 'exclude', label: 'Sync all except matching users' },
-    { value: 'include', label: 'Sync only matching users' },
+    { value: 'all', label: 'Include all users' },
+    { value: 'exclude', label: 'Exclude matching users' },
+    { value: 'include', label: 'Include only matching users' },
   ],
 };
 
@@ -76,9 +76,9 @@ export const syncUserFilterModeVariable: CheckVariable = {
  */
 export const syncExcludedEmailsVariable: CheckVariable = {
   id: 'sync_excluded_emails',
-  label: 'Exclude from Sync',
+  label: 'Exclude from Sync & Checks',
   helpText:
-    'Add full emails, domains (@company.com or company.com), or partial text. Press Enter after each value. Matching users stay active and are skipped during sync.',
+    'Add full emails, domains (@company.com or company.com), or partial text. Press Enter after each value. Matching users are excluded from both employee sync and security checks (2FA, Access Review).',
   type: 'multi-select',
   required: false,
   placeholder: 'Type a value and press Enter',
@@ -89,9 +89,9 @@ export const syncExcludedEmailsVariable: CheckVariable = {
  */
 export const syncIncludedEmailsVariable: CheckVariable = {
   id: 'sync_included_emails',
-  label: 'Include in Sync',
+  label: 'Include in Sync & Checks',
   helpText:
-    'Add full emails, domains (@company.com or company.com), or partial text. Press Enter after each value. Only matching users are imported/reactivated. If empty, sync falls back to all users.',
+    'Add full emails, domains (@company.com or company.com), or partial text. Press Enter after each value. Only matching users are included in sync and security checks. If empty, all users are included.',
   type: 'multi-select',
   required: false,
   placeholder: 'Type a value and press Enter',
