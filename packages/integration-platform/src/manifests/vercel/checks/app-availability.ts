@@ -1,7 +1,6 @@
 import { TASK_TEMPLATES } from '../../../task-mappings';
 import type { CheckContext, IntegrationCheck } from '../../../types';
 import type {
-  VercelDeployment,
   VercelDeploymentsResponse,
   VercelProject,
   VercelProjectsResponse,
@@ -67,7 +66,11 @@ export const appAvailabilityCheck: IntegrationCheck = {
       return;
     }
 
-    for (const project of projects) {
+    // Transient states where Vercel keeps the previous READY deployment serving traffic
+    const transitionalStates = new Set(['BUILDING', 'QUEUED', 'INITIALIZING']);
+    let checkedCount = 0;
+
+    for (const project of projects.slice(0, 10)) {
       try {
         const params = new URLSearchParams({ projectId: project.id, limit: '1', target: 'production' });
         if (teamId) params.set('teamId', teamId);
@@ -79,6 +82,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
         const latestDeploy = deployments[0];
 
         if (latestDeploy && latestDeploy.state === 'READY') {
+          checkedCount++;
           ctx.pass({
             title: `Available: ${project.name}`,
             resourceType: 'project',
@@ -91,7 +95,21 @@ export const appAvailabilityCheck: IntegrationCheck = {
               deployedAt: new Date(latestDeploy.created).toISOString(),
             },
           });
+        } else if (latestDeploy && transitionalStates.has(latestDeploy.state)) {
+          checkedCount++;
+          ctx.pass({
+            title: `Deploying: ${project.name}`,
+            resourceType: 'project',
+            resourceId: project.id,
+            description: `Deployment in progress (${latestDeploy.state}). Previous deployment continues serving traffic.`,
+            evidence: {
+              project: project.name,
+              deploymentState: latestDeploy.state,
+              deploymentUrl: latestDeploy.url,
+            },
+          });
         } else if (latestDeploy) {
+          checkedCount++;
           ctx.fail({
             title: `Unhealthy: ${project.name}`,
             resourceType: 'project',
@@ -106,6 +124,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
             },
           });
         } else {
+          checkedCount++;
           ctx.fail({
             title: `No production deployment: ${project.name}`,
             resourceType: 'project',
@@ -116,8 +135,27 @@ export const appAvailabilityCheck: IntegrationCheck = {
           });
         }
       } catch (error) {
-        ctx.log(`Could not check deployments for ${project.name}: ${error}`);
+        checkedCount++;
+        ctx.fail({
+          title: `Failed to check: ${project.name}`,
+          resourceType: 'project',
+          resourceId: project.id,
+          severity: 'medium',
+          description: `Could not fetch deployments: ${error instanceof Error ? error.message : String(error)}`,
+          remediation: 'Verify the OAuth connection has access to this project.',
+        });
       }
+    }
+
+    if (checkedCount === 0) {
+      ctx.fail({
+        title: 'No projects could be checked',
+        resourceType: 'vercel',
+        resourceId: 'projects',
+        severity: 'high',
+        description: 'All project deployment checks failed.',
+        remediation: 'Check Vercel API access and try again.',
+      });
     }
 
     ctx.log('Vercel App Availability check complete');
