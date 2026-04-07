@@ -1,3 +1,18 @@
+# [3.18.0](https://github.com/trycompai/comp/compare/v3.17.0...v3.18.0) (2026-04-07)
+
+
+### Bug Fixes
+
+* **vercel:** fix false positives, silent errors, and missing project cap ([4ed79d0](https://github.com/trycompai/comp/commit/4ed79d0168d1d701cc07189cf9b7e6a5e63ecb5d))
+* **vercel:** handle CANCELED as medium-severity failure, not transitional ([662ad72](https://github.com/trycompai/comp/commit/662ad720b642f44b38c907e81b9b30114a760c5f))
+* **vercel:** remove remaining checkedCount reference in catch block ([265a5e4](https://github.com/trycompai/comp/commit/265a5e42b9c5177567000545f5c1743369366407))
+* **vercel:** treat CANCELED as transitional, remove dead code ([2a8ac25](https://github.com/trycompai/comp/commit/2a8ac25f3e6a72395e9f1b70cdb123a75bd5bbbb))
+
+
+### Features
+
+* **vercel:** add App Availability check for deployment health monitoring ([6ccef97](https://github.com/trycompai/comp/commit/6ccef97cd18aa70fc5479da18d3094f509c56d9f))
+
 # [3.17.0](https://github.com/trycompai/comp/compare/v3.16.2...v3.17.0) (2026-04-07)
 
 
