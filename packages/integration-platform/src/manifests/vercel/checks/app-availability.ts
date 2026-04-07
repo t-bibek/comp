@@ -67,8 +67,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
     }
 
     // Transient states where Vercel keeps the previous READY deployment serving traffic
-    const transitionalStates = new Set(['BUILDING', 'QUEUED', 'INITIALIZING']);
-    let checkedCount = 0;
+    const transitionalStates = new Set(['BUILDING', 'QUEUED', 'INITIALIZING', 'CANCELED']);
 
     for (const project of projects.slice(0, 10)) {
       try {
@@ -82,7 +81,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
         const latestDeploy = deployments[0];
 
         if (latestDeploy && latestDeploy.state === 'READY') {
-          checkedCount++;
+
           ctx.pass({
             title: `Available: ${project.name}`,
             resourceType: 'project',
@@ -96,7 +95,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
             },
           });
         } else if (latestDeploy && transitionalStates.has(latestDeploy.state)) {
-          checkedCount++;
+
           ctx.pass({
             title: `Deploying: ${project.name}`,
             resourceType: 'project',
@@ -109,7 +108,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
             },
           });
         } else if (latestDeploy) {
-          checkedCount++;
+
           ctx.fail({
             title: `Unhealthy: ${project.name}`,
             resourceType: 'project',
@@ -124,7 +123,7 @@ export const appAvailabilityCheck: IntegrationCheck = {
             },
           });
         } else {
-          checkedCount++;
+
           ctx.fail({
             title: `No production deployment: ${project.name}`,
             resourceType: 'project',
@@ -145,17 +144,6 @@ export const appAvailabilityCheck: IntegrationCheck = {
           remediation: 'Verify the OAuth connection has access to this project.',
         });
       }
-    }
-
-    if (checkedCount === 0) {
-      ctx.fail({
-        title: 'No projects could be checked',
-        resourceType: 'vercel',
-        resourceId: 'projects',
-        severity: 'high',
-        description: 'All project deployment checks failed.',
-        remediation: 'Check Vercel API access and try again.',
-      });
     }
 
     ctx.log('Vercel App Availability check complete');
