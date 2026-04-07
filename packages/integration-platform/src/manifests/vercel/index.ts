@@ -1,5 +1,5 @@
 import type { IntegrationManifest } from '../../types';
-import { monitoringAlertingCheck } from './checks';
+import { appAvailabilityCheck, monitoringAlertingCheck } from './checks';
 
 export const vercelManifest: IntegrationManifest = {
   id: 'vercel',
@@ -54,5 +54,5 @@ Enter the Client ID, Secret, and the integration slug (from \`vercel.com/integra
 
   capabilities: ['checks'],
 
-  checks: [monitoringAlertingCheck],
+  checks: [monitoringAlertingCheck, appAvailabilityCheck],
 };
