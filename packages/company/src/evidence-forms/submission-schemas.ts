@@ -58,10 +58,16 @@ const rbacMatrixRowSchema = z.object({
   lastReviewed: requiredTrimmed('Last reviewed'),
 });
 
-const rbacMatrixDataSchema = z.object({
-  submissionDate: required('Submission date'),
-  matrixRows: z.array(rbacMatrixRowSchema).min(1, 'At least one RBAC entry is required'),
-});
+const rbacMatrixDataSchema = z
+  .object({
+    submissionDate: required('Submission date'),
+    matrixRows: z.array(rbacMatrixRowSchema).optional(),
+    matrixFile: evidenceFormFileSchema.optional(),
+  })
+  .refine((data) => (data.matrixRows && data.matrixRows.length > 0) || data.matrixFile, {
+    message: 'Enter at least one RBAC row or upload a spreadsheet',
+    path: ['matrixRows'],
+  });
 
 const infrastructureInventoryRowSchema = z.object({
   assetId: requiredTrimmed('Asset ID'),

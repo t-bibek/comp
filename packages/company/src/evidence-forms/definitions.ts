@@ -222,7 +222,7 @@ Remediation: Status of fixes (e.g. 3 of 5 critical findings remediated; 2 in pro
         key: 'matrixRows',
         label: 'RBAC entries',
         type: 'matrix',
-        required: true,
+        required: false,
         description: 'Audit-minimum role access evidence.',
         addRowLabel: 'Add RBAC row',
         columns: [
