@@ -265,7 +265,7 @@ Remediation: Status of fixes (e.g. 3 of 5 critical findings remediated; 2 in pro
         required: false,
         accept: '.csv,.xlsx,.xls,.pdf',
         description:
-          'Optionally upload a CSV or Excel file with your RBAC matrix instead of entering rows above',
+          'Optionally upload a CSV or Excel file with your RBAC matrix instead of entering rows manually',
       },
     ],
   },
