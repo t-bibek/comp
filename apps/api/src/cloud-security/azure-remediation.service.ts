@@ -584,7 +584,7 @@ export class AzureRemediationService {
       const granted = await this.tryGrantMissingRole(
         accessToken,
         subscriptionId,
-        'Need Contributor for auto-fix write operations',
+        'microsoft.resources/write', // triggers Contributor role match
       );
 
       if (granted) {
@@ -702,8 +702,8 @@ export class AzureRemediationService {
       return '749f88d5-cbae-40b8-bcfc-e573ddc772fa';
     }
 
-    // Fallback: Contributor covers most write operations
-    return 'b24988ac-6180-42a0-ab88-20f7382dd24c';
+    // No match — don't blindly assign Contributor
+    return null;
   }
 
   private extractSubscriptionId(resourceId: string): string | null {

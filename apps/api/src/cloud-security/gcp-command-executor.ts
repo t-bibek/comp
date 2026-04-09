@@ -315,12 +315,20 @@ export function validateGcpPlanSteps(steps: GcpApiStep[]): string[] {
   const errors: string[] = [];
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]!;
-    if (!step.url) errors.push(`Step ${i + 1}: URL is required`);
+    if (!step.url) { errors.push(`Step ${i + 1}: URL is required`); continue; }
     if (!step.method) errors.push(`Step ${i + 1}: method is required`);
-    if (!step.url.startsWith('https://'))
-      errors.push(`Step ${i + 1}: URL must use HTTPS`);
-    if (!step.url.includes('googleapis.com'))
-      errors.push(`Step ${i + 1}: URL must be a Google API endpoint`);
+    try {
+      const parsed = new URL(step.url);
+      if (parsed.protocol !== 'https:') {
+        errors.push(`Step ${i + 1}: URL must use HTTPS`);
+      }
+      const host = parsed.hostname.toLowerCase();
+      if (host !== 'googleapis.com' && !host.endsWith('.googleapis.com')) {
+        errors.push(`Step ${i + 1}: URL must be a Google API endpoint`);
+      }
+    } catch {
+      errors.push(`Step ${i + 1}: URL must be a valid absolute URL`);
+    }
   }
   return errors;
 }

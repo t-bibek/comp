@@ -296,17 +296,24 @@ async function pollAsyncOperation(
 /**
  * Validate Azure API steps for safety.
  */
+const AZURE_ALLOWED_HOSTS = new Set(['management.azure.com', 'graph.microsoft.com']);
+
 export function validateAzurePlanSteps(steps: AzureApiStep[]): string[] {
   const errors: string[] = [];
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
-    if (!step.url) errors.push(`Step ${i}: URL is required`);
+    if (!step.url) { errors.push(`Step ${i}: URL is required`); continue; }
     if (!step.method) errors.push(`Step ${i}: method is required`);
-    if (step.url && !step.url.startsWith('https://')) {
-      errors.push(`Step ${i}: URL must start with https://`);
-    }
-    if (step.url && !step.url.includes('management.azure.com') && !step.url.includes('graph.microsoft.com')) {
-      errors.push(`Step ${i}: URL must target Azure Management or Graph API`);
+    try {
+      const parsed = new URL(step.url);
+      if (parsed.protocol !== 'https:') {
+        errors.push(`Step ${i}: URL must use HTTPS`);
+      }
+      if (!AZURE_ALLOWED_HOSTS.has(parsed.hostname)) {
+        errors.push(`Step ${i}: URL must target Azure Management or Graph API`);
+      }
+    } catch {
+      errors.push(`Step ${i}: URL must be a valid absolute URL`);
     }
     if (step.method === 'DELETE' && step.url?.match(/\/subscriptions\/[^/]+$/)) {
       errors.push(`Step ${i}: Cannot delete a subscription`);
