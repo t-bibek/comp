@@ -347,7 +347,7 @@ export class AzureRemediationService {
         verified = JSON.stringify(postFixState) !== JSON.stringify(previousState);
       }
 
-      const status = verified ? 'success' : 'success';
+      const status = verified ? 'success' : 'unverified';
       await db.remediationAction.update({
         where: { id: action.id },
         data: {
@@ -704,57 +704,6 @@ export class AzureRemediationService {
 
     // Fallback: Contributor covers most write operations
     return 'b24988ac-6180-42a0-ab88-20f7382dd24c';
-  }
-
-  /**
-   * Scan fix step URLs for Azure resource providers and register any that are needed.
-   * e.g., a step targeting Microsoft.OperationalInsights/workspaces will register Microsoft.OperationalInsights
-   */
-  private async ensureProvidersRegistered(
-    accessToken: string,
-    steps: Array<{ url: string; method: string }>,
-  ): Promise<void> {
-    // Extract unique provider namespaces from step URLs
-    const providers = new Set<string>();
-    for (const step of steps) {
-      if (step.method === 'GET') continue;
-      const match = step.url.match(/\/providers\/(Microsoft\.[^/]+)\//);
-      if (match) providers.add(match[1]);
-    }
-
-    if (providers.size === 0) return;
-
-    for (const provider of providers) {
-      try {
-        const subMatch = steps[0].url.match(/\/subscriptions\/([^/]+)/);
-        const subscriptionId = subMatch?.[1];
-        if (!subscriptionId) continue;
-
-        this.logger.log(`Registering resource provider: ${provider}`);
-        const resp = await fetch(
-          `https://management.azure.com/subscriptions/${subscriptionId}/providers/${provider}/register?api-version=2021-04-01`,
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${accessToken}` },
-          },
-        );
-
-        if (resp.ok) {
-          this.logger.log(`Provider ${provider} registered (or already registered)`);
-        } else {
-          const error = await resp.text();
-          this.logger.warn(`Failed to register ${provider}: ${error.slice(0, 200)}`);
-        }
-      } catch (err) {
-        this.logger.warn(`Provider registration failed for ${provider}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    // Wait for provider registration to propagate
-    if (providers.size > 0) {
-      this.logger.log(`Waiting for ${providers.size} provider(s) to propagate...`);
-      await new Promise((r) => setTimeout(r, 5000));
-    }
   }
 
   private extractSubscriptionId(resourceId: string): string | null {

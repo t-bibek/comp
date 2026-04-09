@@ -174,7 +174,6 @@ async function sendWithAutoRetry(
         errName === 'ResourceAlreadyExistsException'
         || errName === 'DuplicateDocumentContent'
         || errName === 'DuplicateDocumentVersionName'
-        || errName === 'InvalidInputException'
         || errMsg.includes('already exists')
         || errMsg.includes('AlreadyExists')
         || errMsg.includes('same metadata and content')
@@ -406,6 +405,10 @@ export async function executeAwsCommand(params: {
         || kBase.replace('Bucket', '') === cmdBase.replace('Bucket', '');
     });
     if (match) {
+      // Re-check blocked commands against the resolved name
+      if (BLOCKED_COMMANDS.has(match) && !isRollback) {
+        throw new Error(`Command "${match}" is blocked for safety`);
+      }
       CommandClass = mod[match];
     }
   }
