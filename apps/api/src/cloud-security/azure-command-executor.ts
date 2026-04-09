@@ -201,11 +201,15 @@ async function executeOnce(
   if (response.status === 202) {
     const pollUrl = response.headers.get('Azure-AsyncOperation') || response.headers.get('Location');
     if (pollUrl) {
-      const finalResult = await pollAsyncOperation(pollUrl, accessToken);
-      if (finalResult === null) {
-        return { step, success: false, error: 'Async operation timed out or failed to poll' };
+      try {
+        const finalResult = await pollAsyncOperation(pollUrl, accessToken);
+        if (finalResult === null) {
+          return { step, success: false, error: 'Async operation timed out or failed to poll' };
+        }
+        return { step, success: true, statusCode: 200, response: finalResult };
+      } catch (pollErr) {
+        return { step, success: false, error: `Async operation failed: ${pollErr instanceof Error ? pollErr.message : String(pollErr)}` };
       }
-      return { step, success: true, statusCode: 200, response: finalResult };
     }
     return { step, success: true, statusCode: 202, response: null };
   }
