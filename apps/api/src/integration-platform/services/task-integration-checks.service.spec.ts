@@ -26,7 +26,8 @@ const mockedGetManifest = getManifest as jest.MockedFunction<
 >;
 // Grabbing through the module reference avoids the `unbound-method` lint rule
 // that fires when you extract an instance method from an object literal.
-const mockedFindTask = (db.task as { findUnique: jest.Mock }).findUnique;
+const mockedFindTask = (db.task as unknown as { findUnique: jest.Mock })
+  .findUnique;
 
 describe('TaskIntegrationChecksService', () => {
   let service: TaskIntegrationChecksService;
@@ -88,26 +89,6 @@ describe('TaskIntegrationChecksService', () => {
     mockConnectionService.updateConnectionMetadata.mockResolvedValue(
       baseConnection as never,
     );
-  });
-
-  describe('getDisabledCheckIdsForTask', () => {
-    it('returns an empty set for empty metadata', () => {
-      expect(service.getDisabledCheckIdsForTask(null, TASK_ID).size).toBe(0);
-      expect(service.getDisabledCheckIdsForTask({}, TASK_ID).size).toBe(0);
-    });
-
-    it('returns disabled check ids for the specified task', () => {
-      const metadata = {
-        [DISABLED_TASK_CHECKS_KEY]: {
-          [TASK_ID]: ['branch_protection', 'dependabot'],
-          other_task: ['sanitized_inputs'],
-        },
-      };
-      const result = service.getDisabledCheckIdsForTask(metadata, TASK_ID);
-      expect(result.has('branch_protection')).toBe(true);
-      expect(result.has('dependabot')).toBe(true);
-      expect(result.has('sanitized_inputs')).toBe(false);
-    });
   });
 
   describe('disconnectCheckFromTask', () => {

@@ -84,6 +84,7 @@ export function TaskIntegrationChecks({
     checkName: string;
     integrationName: string;
   } | null>(null);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
   // Sync hook-level error into local state
   useEffect(() => {
@@ -163,14 +164,14 @@ export function TaskIntegrationChecks({
     if (!disconnectTarget) return;
     const { connectionId, checkId, checkName } = disconnectTarget;
     setTogglingCheck(checkId);
-    setError(null);
+    setDisconnectError(null);
     try {
       await disconnectCheckFromTask(connectionId, checkId);
       toast.success(`Disconnected "${checkName}" from this task.`);
       setDisconnectTarget(null);
     } catch (err) {
       console.error('Failed to disconnect check:', err);
-      setError(
+      setDisconnectError(
         err instanceof Error ? err.message : 'Failed to disconnect check',
       );
     } finally {
@@ -733,7 +734,12 @@ export function TaskIntegrationChecks({
       <AlertDialog
         open={!!disconnectTarget}
         onOpenChange={(open) => {
-          if (!open) setDisconnectTarget(null);
+          // Don't let Escape / click-outside close the dialog mid-request —
+          // the in-flight operation still owns the target state.
+          if (!open && togglingCheck === null) {
+            setDisconnectTarget(null);
+            setDisconnectError(null);
+          }
         }}
       >
         <AlertDialogContent>
@@ -751,12 +757,25 @@ export function TaskIntegrationChecks({
               ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {disconnectError && (
+            <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+              <span>{disconnectError}</span>
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={togglingCheck !== null}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmDisconnect}
+              onClick={(e) => {
+                // Radix's AlertDialogAction auto-closes the dialog on click.
+                // Stop that so our async handler controls the close, keeping
+                // the "Disconnecting…" state visible until the request lands
+                // and surfacing any error inside the dialog context.
+                e.preventDefault();
+                void handleConfirmDisconnect();
+              }}
               disabled={togglingCheck !== null}
             >
               {togglingCheck !== null ? 'Disconnecting...' : 'Disconnect'}

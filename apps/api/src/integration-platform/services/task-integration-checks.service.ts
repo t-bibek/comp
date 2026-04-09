@@ -10,7 +10,6 @@ import { ConnectionRepository } from '../repositories/connection.repository';
 import { ProviderRepository } from '../repositories/provider.repository';
 import { ConnectionService } from './connection.service';
 import {
-  parseDisabledTaskChecks,
   withCheckDisabled,
   withCheckEnabled,
 } from '../utils/disabled-task-checks';
@@ -32,19 +31,6 @@ export class TaskIntegrationChecksService {
     private readonly connectionService: ConnectionService,
     private readonly providerRepository: ProviderRepository,
   ) {}
-
-  /**
-   * Returns the set of disabled check IDs for a (task, connection) pair.
-   * Used by GET endpoints to annotate list responses.
-   */
-  getDisabledCheckIdsForTask(
-    connectionMetadata: unknown,
-    taskId: string,
-  ): Set<string> {
-    const map = parseDisabledTaskChecks(connectionMetadata);
-    const list = map[taskId];
-    return new Set(Array.isArray(list) ? list : []);
-  }
 
   /**
    * Disconnect a single check from a single task. The connection stays active
