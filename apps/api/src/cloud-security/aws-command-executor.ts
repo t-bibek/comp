@@ -377,12 +377,6 @@ export async function executeAwsCommand(params: {
     throw new Error(`Service "${service}" is not supported`);
   }
 
-  // ─── Universal param normalisation ──────────────────────────────────
-  // Instead of per-command hacks, apply two universal rules that cover
-  // every current and future AWS command the AI might generate.
-
-  normaliseInputParams(input, command, region);
-
   // Block dangerous commands — unless this is a rollback (rollback needs Delete to undo)
   if (BLOCKED_COMMANDS.has(command) && !isRollback) {
     throw new Error(`Command "${command}" is blocked for safety`);
@@ -391,6 +385,12 @@ export async function executeAwsCommand(params: {
   if (!command.endsWith('Command')) {
     throw new Error(`Invalid command name "${command}"`);
   }
+
+  // ─── Universal param normalisation ──────────────────────────────────
+  // Instead of per-command hacks, apply two universal rules that cover
+  // every current and future AWS command the AI might generate.
+
+  normaliseInputParams(input, command, region);
 
   // Try exact command name first, then fuzzy match if not found
   let CommandClass = mod[command];

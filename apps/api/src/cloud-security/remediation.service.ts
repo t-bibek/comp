@@ -97,7 +97,7 @@ export class RemediationService {
       }
 
       // Return cached plan data with updated permission status
-      const cached = this.planCache.get(params.checkResultId);
+      const cached = this.planCache.get(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
       const cachedPlan = cached?.plan;
 
       return {
@@ -241,7 +241,7 @@ export class RemediationService {
           }
 
           // Cache the refined plan + permissions for execute and Recheck
-          this.planCache.set(params.checkResultId, { plan: refined, timestamp: Date.now(), permissionsList });
+          this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, { plan: refined, timestamp: Date.now(), permissionsList });
 
           return {
             currentState: refined.currentState,
@@ -266,7 +266,7 @@ export class RemediationService {
     }
 
     // Fallback: show initial AI plan without real data
-    this.planCache.set(params.checkResultId, { plan, timestamp: Date.now(), permissionsList: plan.requiredPermissions });
+    this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, { plan, timestamp: Date.now(), permissionsList: plan.requiredPermissions });
 
     return {
       currentState: plan.currentState,
@@ -302,7 +302,7 @@ export class RemediationService {
 
     // Get plan from cache or regenerate
     let plan: FixPlan;
-    const cached = this.planCache.get(params.checkResultId);
+    const cached = this.planCache.get(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
       plan = cached.plan;
     } else {
@@ -451,7 +451,7 @@ export class RemediationService {
       });
 
       this.logger.log(`Remediation executed on ${finding.resourceId}`);
-      this.planCache.delete(params.checkResultId);
+      this.planCache.delete(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
 
       return {
         actionId: action.id,
@@ -474,7 +474,7 @@ export class RemediationService {
             failedStep: plan.fixSteps[0]!,
           });
           // Merge: cached permissions from preview + newly discovered missing ones
-          const cached = this.planCache.get(params.checkResultId);
+          const cached = this.planCache.get(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
           const allPerms = new Set([
             ...(cached?.permissionsList ?? plan.requiredPermissions),
             ...suggestion.missingActions,
