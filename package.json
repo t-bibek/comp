@@ -88,6 +88,12 @@
     "packages/*"
   ],
   "dependencies": {
+    "@aws-sdk/client-cloudtrail": "3.1013.0",
+    "@aws-sdk/client-ec2": "3.1013.0",
+    "@aws-sdk/client-iam": "3.1013.0",
+    "@aws-sdk/client-lambda": "3.1013.0",
+    "@aws-sdk/client-s3": "3.1013.0",
+    "@aws-sdk/client-sts": "3.1013.0",
     "@trycompai/design-system": "1.0.45",
     "@types/cheerio": "^1.0.0",
     "@types/react-syntax-highlighter": "^15.5.13",

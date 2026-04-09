@@ -112,6 +112,12 @@ export class HybridAuthGuard implements CanActivate {
     request.isPlatformAdmin = false;
     request.userRoles = null;
 
+    // Service tokens can pass x-user-id to act on behalf of a user
+    const actingUserId = request.headers['x-user-id'] as string;
+    if (actingUserId) {
+      request.userId = actingUserId;
+    }
+
     this.logger.log(
       `Service "${service.definition.name}" authenticated for org ${organizationId}`,
     );

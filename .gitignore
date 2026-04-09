@@ -95,4 +95,4 @@ scripts/sync-release-branch.sh
 
 .claude/audit-findings.md
 
-.superpowers/*
+.superpowers/*.claude/worktrees/
