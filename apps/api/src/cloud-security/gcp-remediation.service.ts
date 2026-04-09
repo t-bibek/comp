@@ -548,9 +548,13 @@ export class GcpRemediationService {
   }
 
   private buildPreviewResponse(plan: GcpFixPlan) {
-    const apiCalls = plan.fixSteps.map(
-      (s) => `${s.method} ${new URL(s.url).pathname}`,
-    );
+    const apiCalls = plan.fixSteps.map((s) => {
+      try {
+        return `${s.method} ${new URL(s.url).pathname}`;
+      } catch {
+        return `${s.method} ${s.url}`;
+      }
+    });
 
     return {
       currentState: plan.currentState,
