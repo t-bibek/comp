@@ -526,7 +526,7 @@ export class RemediationService {
     }
 
     const action = actionWithProvider;
-    if (action.status !== 'success') {
+    if (action.status !== 'success' && action.status !== 'unverified') {
       throw new Error(`Cannot rollback action with status "${action.status}"`);
     }
 

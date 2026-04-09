@@ -404,7 +404,7 @@ export class AzureRemediationService {
       where: {
         id: params.actionId,
         organizationId: params.organizationId,
-        status: 'success',
+        status: { in: ['success', 'unverified'] },
       },
       include: {
         connection: { include: { provider: true } },

@@ -415,7 +415,7 @@ export class GcpRemediationService {
     });
 
     if (!action) throw new Error('Remediation action not found');
-    if (action.status !== 'success') {
+    if (action.status !== 'success' && action.status !== 'unverified') {
       throw new Error(
         `Cannot rollback action with status "${action.status}"`,
       );

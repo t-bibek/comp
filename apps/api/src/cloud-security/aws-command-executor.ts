@@ -462,7 +462,7 @@ export async function executePlanSteps(params: {
       const output = await executeAwsCommand({
         service: step.service,
         command: step.command,
-        input: step.params,
+        input: structuredClone(step.params),
         credentials: params.credentials,
         region: params.region,
         isRollback: params.isRollback,

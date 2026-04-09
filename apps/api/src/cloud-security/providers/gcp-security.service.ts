@@ -539,8 +539,7 @@ export class GCPSecurityService {
       if (
         errorText.includes('SERVICE_DISABLED') ||
         errorText.includes('has not been used') ||
-        errorText.includes('Security Command Center API') ||
-        errorText.includes('securitycenter.googleapis.com')
+        errorText.includes('Security Command Center API')
       ) {
         throw new Error(
           'SCC_NOT_ACTIVATED: Security Command Center is not activated on your GCP organization. ' +
