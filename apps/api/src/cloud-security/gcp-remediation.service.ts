@@ -119,7 +119,7 @@ export class GcpRemediationService {
             };
           }
 
-          this.planCache.set(params.checkResultId, {
+          this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, {
             plan: refined,
             timestamp: Date.now(),
           });
@@ -132,7 +132,7 @@ export class GcpRemediationService {
     }
 
     // Fallback: show initial AI plan without real data
-    this.planCache.set(params.checkResultId, {
+    this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, {
       plan,
       timestamp: Date.now(),
     });
@@ -151,7 +151,7 @@ export class GcpRemediationService {
 
     // Get plan from cache or regenerate
     let plan: GcpFixPlan;
-    const cached = this.planCache.get(params.checkResultId);
+    const cached = this.planCache.get(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
     if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
       plan = cached.plan;
     } else {
@@ -360,7 +360,7 @@ export class GcpRemediationService {
       });
 
       this.logger.log(`GCP remediation executed on ${finding.resourceId} (verified: ${verified})`);
-      this.planCache.delete(params.checkResultId);
+      this.planCache.delete(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`);
 
       return {
         actionId: action.id,

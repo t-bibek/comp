@@ -181,9 +181,16 @@ OVERESTIMATE. Better to have 5 extra permissions than to miss one.`,
       ) ?? params.errorMessage.match(/required\s+([\w:*]+)\s+permission/i);
 
       const actions = actionMatch?.[1] ? [actionMatch[1]] : [];
+      if (actions.length === 0) {
+        return {
+          missingActions: [],
+          policyStatement: { Effect: 'Allow' as const, Action: [], Resource: '*' },
+          fixScript: `# Could not determine the missing IAM action from the error. Check the error message and add the required permission manually to the ${REMEDIATION_ROLE_NAME} role.`,
+        };
+      }
       const policy = JSON.stringify({
         Version: '2012-10-17',
-        Statement: [{ Effect: 'Allow', Action: actions.length ? actions : ['*'], Resource: '*' }],
+        Statement: [{ Effect: 'Allow', Action: actions, Resource: '*' }],
       });
 
       return {
