@@ -15,7 +15,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { HybridAuthGuard } from '../auth/hybrid-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
-import { OrganizationId, UserId } from '../auth/auth-context.decorator';
+import { OrganizationId } from '../auth/auth-context.decorator';
 import {
   CloudSecurityService,
   ConnectionNotFoundError,
@@ -93,7 +93,6 @@ export class CloudSecurityController {
   async scan(
     @Param('connectionId') connectionId: string,
     @OrganizationId() organizationId: string,
-    @UserId() userId: string,
   ) {
 
     this.logger.log(
@@ -423,12 +422,18 @@ export class CloudSecurityController {
         );
 
       const credentials = connection.credentials as Record<string, unknown>;
+      const variables = (connection.variables ?? {}) as Record<string, unknown>;
       const tenantId = credentials?.tenantId as string;
       const clientId = credentials?.clientId as string;
       const clientSecret = credentials?.clientSecret as string;
-      const subscriptionId = credentials?.subscriptionId as string;
+      const subscriptionId = (credentials?.subscriptionId ?? variables.subscription_id) as string | undefined;
 
       const steps: Array<{ name: string; success: boolean; error?: string }> = [];
+
+      if (!subscriptionId) {
+        steps.push({ name: 'Subscription ID', success: false, error: 'No subscription ID configured. Go to the Azure integration settings to auto-detect your subscription.' });
+        return { steps, subscriptionId: null };
+      }
 
       // Step 1: Validate credentials (token exchange)
       let accessToken: string | null = null;
