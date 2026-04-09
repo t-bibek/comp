@@ -224,23 +224,11 @@ export class AzureRemediationService {
         autoRollbackSteps: plan.rollbackSteps,
       });
 
-      // Self-healing round 1: permission error → grant role → retry
+      // If permission error, report it clearly — don't attempt self-healing role grants
       if (fixResult.error) {
         const permError = parseAzurePermissionError(fixResult.error.message);
-
-        if (permError?.isPermissionError && subscriptionId) {
-          this.logger.log('Permission error — attempting self-healing role assignment...');
-          const healed = await this.tryGrantMissingRole(accessToken, subscriptionId, fixResult.error.message);
-
-          if (healed) {
-            this.logger.log('Role assigned — waiting for propagation and retrying...');
-            await new Promise((r) => setTimeout(r, 8000));
-            fixResult = await executeAzurePlanSteps({
-              steps: plan.fixSteps,
-              accessToken,
-              autoRollbackSteps: plan.rollbackSteps,
-            });
-          }
+        if (permError?.isPermissionError) {
+          this.logger.warn(`Permission error: ${fixResult.error.message}. Assign the required Azure role to the app registration.`);
         }
       }
 
@@ -463,21 +451,11 @@ export class AzureRemediationService {
       isRollback: true,
     });
 
-    // Self-healing: if permission error during rollback, try to grant role and retry
+    // If permission error during rollback, log clearly
     if (result.error && subscriptionId) {
       const permError = parseAzurePermissionError(result.error.message);
       if (permError?.isPermissionError) {
-        this.logger.log('Rollback permission error — attempting self-healing...');
-        const healed = await this.tryGrantMissingRole(accessToken, subscriptionId, result.error.message);
-        if (healed) {
-          this.logger.log('Role granted — retrying rollback...');
-          await new Promise((r) => setTimeout(r, 8000));
-          result = await executeAzurePlanSteps({
-            steps: rollbackSteps as Parameters<typeof executeAzurePlanSteps>[0]['steps'],
-            accessToken,
-            isRollback: true,
-          });
-        }
+        this.logger.warn(`Rollback permission error: ${result.error.message}. Assign the required Azure role to the app registration.`);
       }
     }
 
@@ -558,7 +536,6 @@ export class AzureRemediationService {
     subscriptionId: string,
   ): Promise<void> {
     try {
-      // Check current permissions via Azure permissions API
       const resp = await fetch(
         `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
@@ -580,132 +557,10 @@ export class AzureRemediationService {
         return;
       }
 
-      this.logger.log('Pre-flight: no write access — attempting self-grant Contributor role...');
-      const granted = await this.tryGrantMissingRole(
-        accessToken,
-        subscriptionId,
-        'microsoft.resources/write', // triggers Contributor role match
-      );
-
-      if (granted) {
-        this.logger.log('Pre-flight: Contributor role granted — waiting for propagation...');
-        await new Promise((r) => setTimeout(r, 8000));
-      } else {
-        this.logger.warn('Pre-flight: could not self-grant write access — fix may fail with permission errors');
-      }
+      this.logger.warn('Pre-flight: no write access detected — fix may fail. Assign Contributor role to the app registration.');
     } catch (err) {
       this.logger.warn(`Pre-flight permission check failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }
-
-  /**
-   * Attempt to grant the user a role that covers the missing permission.
-   * Works only if the user's token has Owner or User Access Administrator role.
-   * Returns true if role was successfully assigned.
-   */
-  private async tryGrantMissingRole(
-    accessToken: string,
-    subscriptionId: string,
-    errorMessage: string,
-  ): Promise<boolean> {
-    if (!subscriptionId) return false;
-
-    // Determine which role to assign based on the error
-    const roleId = this.detectNeededRole(errorMessage);
-    if (!roleId) return false;
-
-    try {
-      // Get the caller's principal ID via ARM (works with management.azure.com tokens)
-      let principalId: string | null = null;
-
-      // Try ARM role assignments list to discover the caller's principal ID
-      const assignmentsResp = await fetch(
-        `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&$filter=atScope()`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      );
-      if (assignmentsResp.ok) {
-        const data = (await assignmentsResp.json()) as { value?: Array<{ properties?: { principalId?: string } }> };
-        // Use the first assignment's principal as the caller — they have some role on this subscription
-        principalId = data.value?.[0]?.properties?.principalId ?? null;
-      }
-
-      if (!principalId) {
-        this.logger.warn('Cannot determine principal ID for role assignment');
-        return false;
-      }
-
-      // Create role assignment
-      const assignmentId = crypto.randomUUID();
-      const resp = await fetch(
-        `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleAssignments/${assignmentId}?api-version=2022-04-01`,
-        {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            properties: {
-              roleDefinitionId: `/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleDefinitions/${roleId}`,
-              principalId,
-              principalType: 'User',
-            },
-          }),
-        },
-      );
-
-      if (resp.ok || resp.status === 409) {
-        this.logger.log(`Self-healed: assigned role ${roleId} to user ${principalId}`);
-        return true;
-      }
-
-      const error = await resp.text();
-      this.logger.warn(`Failed to self-assign role: ${resp.status} ${error}`);
-      return false;
-    } catch (err) {
-      this.logger.warn(`Self-healing role grant failed: ${err instanceof Error ? err.message : String(err)}`);
-      return false;
-    }
-  }
-
-  /**
-   * Map an Azure permission error to the built-in role that would fix it.
-   * Returns the Azure role definition GUID or null.
-   */
-  private detectNeededRole(errorMessage: string): string | null {
-    const lower = errorMessage.toLowerCase();
-
-    // Monitoring Contributor — 749f88d5-cbae-40b8-bcfc-e573ddc772fa (check before Contributor to prefer narrow role)
-    if (lower.includes('microsoft.insights') || lower.includes('monitor')) {
-      return '749f88d5-cbae-40b8-bcfc-e573ddc772fa';
-    }
-    // Contributor (general write access) — b24988ac-6180-42a0-ab88-20f7382dd24c
-    if (lower.includes('microsoft.resources') || lower.includes('microsoft.operationalinsights')) {
-      return 'b24988ac-6180-42a0-ab88-20f7382dd24c'; // Contributor
-    }
-    // Network Contributor — 4d97b98b-1d4f-4787-a291-c67834d212e7
-    if (lower.includes('microsoft.network')) {
-      return '4d97b98b-1d4f-4787-a291-c67834d212e7';
-    }
-    // Key Vault Contributor — f25e0fa2-a7c8-4377-a976-54943a77a395
-    if (lower.includes('microsoft.keyvault')) {
-      return 'f25e0fa2-a7c8-4377-a976-54943a77a395';
-    }
-    // SQL Server Contributor — 6d8ee4ec-f05a-4a1d-8b00-a9b17e38b437
-    if (lower.includes('microsoft.sql')) {
-      return '6d8ee4ec-f05a-4a1d-8b00-a9b17e38b437';
-    }
-    // Storage Account Contributor — 17d1049b-9a84-46fb-8f53-869881c3d3ab
-    if (lower.includes('microsoft.storage')) {
-      return '17d1049b-9a84-46fb-8f53-869881c3d3ab';
-    }
-    // Website Contributor — de139f84-1756-47ae-9be6-808fbbe84772
-    if (lower.includes('microsoft.web')) {
-      return 'de139f84-1756-47ae-9be6-808fbbe84772';
-    }
-
-    // No match — don't blindly assign Contributor
-    return null;
   }
 
   private extractSubscriptionId(resourceId: string): string | null {
