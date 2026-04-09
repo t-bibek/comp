@@ -133,7 +133,7 @@ export class CloudSecurityController {
 
     await logCloudSecurityActivity({
       organizationId,
-      userId,
+      userId: 'system',
       connectionId,
       action: 'scan_completed',
       description: `Ran cloud security scan — ${totalFindings} findings (${failedCount} failed, ${passedCount} passed)`,

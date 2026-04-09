@@ -615,20 +615,22 @@ export class AzureRemediationService {
     if (!roleId) return false;
 
     try {
-      // Get the user's object ID from the token
-      const meResp = await fetch('https://graph.microsoft.com/v1.0/me', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      // If Graph API fails (wrong scope), try to get principal from ARM
+      // Get the caller's principal ID via ARM (works with management.azure.com tokens)
       let principalId: string | null = null;
-      if (meResp.ok) {
-        const me = (await meResp.json()) as { id: string };
-        principalId = me.id;
+
+      // Try ARM role assignments list to discover the caller's principal ID
+      const assignmentsResp = await fetch(
+        `https://management.azure.com/subscriptions/${subscriptionId}/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01&$filter=atScope()`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (assignmentsResp.ok) {
+        const data = (await assignmentsResp.json()) as { value?: Array<{ properties?: { principalId?: string } }> };
+        // Use the first assignment's principal as the caller — they have some role on this subscription
+        principalId = data.value?.[0]?.properties?.principalId ?? null;
       }
 
       if (!principalId) {
-        this.logger.warn('Cannot determine user principal ID for role assignment');
+        this.logger.warn('Cannot determine principal ID for role assignment');
         return false;
       }
 
