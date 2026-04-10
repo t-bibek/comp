@@ -271,8 +271,10 @@ export class CloudSecurityService {
           const disabledSet = new Set(
             Array.isArray(currentVars.disabledServices) ? currentVars.disabledServices as string[] : [],
           );
-          // Remove detected services from disabled (same as AWS behavior)
-          for (const id of serviceIds) disabledSet.delete(id);
+          // Only auto-enable genuinely NEW services — don't override user's explicit disables
+          for (const id of serviceIds) {
+            if (!existingDetected.has(id)) disabledSet.delete(id);
+          }
           await db.integrationConnection.update({
             where: { id: connectionId },
             data: {
