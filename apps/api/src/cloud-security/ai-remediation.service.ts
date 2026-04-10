@@ -368,7 +368,7 @@ Generate the complete fix plan with EXACT values from the real Azure state.`,
   private fallbackPlan(finding: FindingContext): FixPlan {
     return {
       canAutoFix: false,
-      risk: (finding.severity as FixPlan['risk']) ?? 'medium',
+      risk: (finding.severity === 'info' ? 'low' : finding.severity as FixPlan['risk']) ?? 'medium',
       description: finding.remediation ?? finding.description ?? 'Check AWS documentation.',
       currentState: {},
       proposedState: {},
