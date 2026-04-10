@@ -214,6 +214,15 @@ async function executeOnce(
   if (response.status === 202) {
     const pollUrl = response.headers.get('Azure-AsyncOperation') || response.headers.get('Location');
     if (pollUrl) {
+      // Validate poll URL to prevent SSRF via response headers
+      try {
+        const parsedPoll = new URL(pollUrl);
+        if (!AZURE_ALLOWED_HOSTS.has(parsedPoll.hostname)) {
+          return { step, success: false, error: `Async poll URL targets disallowed host: ${parsedPoll.hostname}` };
+        }
+      } catch {
+        return { step, success: false, error: 'Async poll URL is malformed' };
+      }
       try {
         const finalResult = await pollAsyncOperation(pollUrl, accessToken);
         if (finalResult === null) {

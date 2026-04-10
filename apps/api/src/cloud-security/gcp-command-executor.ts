@@ -285,6 +285,19 @@ async function waitForOperation(
     return operation;
   }
 
+  // Validate selfLink URL to prevent SSRF via response data
+  try {
+    const parsed = new URL(selfLink);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'googleapis.com' && !host.endsWith('.googleapis.com')) {
+      logger.warn(`Operation selfLink targets disallowed host: ${host}`);
+      return operation;
+    }
+  } catch {
+    logger.warn('Operation selfLink is malformed');
+    return operation;
+  }
+
   const startTime = Date.now();
   let pollInterval = 2000;
 

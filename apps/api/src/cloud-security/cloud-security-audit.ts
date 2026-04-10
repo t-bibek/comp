@@ -20,6 +20,12 @@ export async function logCloudSecurityActivity(
   params: CloudSecurityAuditParams,
 ) {
   try {
+    // Skip audit log if userId is 'system' (service token without user context)
+    // — auditLog.userId is a FK to User table, 'system' would violate the constraint
+    if (params.userId === 'system') {
+      return;
+    }
+
     await db.auditLog.create({
       data: {
         organizationId: params.organizationId,
