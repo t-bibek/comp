@@ -116,22 +116,28 @@ export const createOrganizationMinimal = authActionClientWithoutOrg
         });
       }
 
-      // Set new org as active
+      // Set new org as active — after this point, the session references
+      // the org so we must NOT delete it on cleanup.
       await auth.api.setActiveOrganization({
         headers: await headers(),
         body: {
           organizationId: orgId,
         },
       });
+      createdOrgId = undefined; // Org is fully initialized, disable cleanup
 
-      // Revalidate paths
-      const headersList = await headers();
-      let path = headersList.get('x-pathname') || headersList.get('referer') || '';
-      path = path.replace(/\/[a-z]{2}\//, '/');
+      // Revalidate paths (non-critical, don't let failures kill the flow)
+      try {
+        const headersList = await headers();
+        let path = headersList.get('x-pathname') || headersList.get('referer') || '';
+        path = path.replace(/\/[a-z]{2}\//, '/');
 
-      revalidatePath(path);
-      revalidatePath('/');
-      revalidatePath('/setup');
+        revalidatePath(path);
+        revalidatePath('/');
+        revalidatePath('/setup');
+      } catch (revalidateError) {
+        console.error('Non-critical: failed to revalidate paths:', revalidateError);
+      }
 
       // NO JOB TRIGGERS - that happens after payment in complete-onboarding
 
@@ -142,7 +148,9 @@ export const createOrganizationMinimal = authActionClientWithoutOrg
     } catch (error) {
       console.error('Error during minimal organization creation:', error);
 
-      // Clean up partially created org to prevent orphans on retry
+      // Clean up partially created org to prevent orphans on retry.
+      // Only runs if the org was created but setActiveOrganization hasn't
+      // succeeded yet (createdOrgId is cleared after activation).
       if (createdOrgId) {
         try {
           await db.organization.delete({ where: { id: createdOrgId } });
