@@ -22,6 +22,7 @@ export const weeklyTaskReminder = schedules.task({
         onboardingCompleted: true,
         members: {
           some: {
+            deactivated: false,
             user: {
               sessions: {
                 some: {
