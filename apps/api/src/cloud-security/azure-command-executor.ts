@@ -49,8 +49,10 @@ export async function executeAzurePlanSteps(params: {
       if (autoRollbackSteps && i > 0) {
         logger.warn(`Step ${i} failed, auto-rolling back ${Math.min(i, autoRollbackSteps.length)} steps`);
         for (let r = Math.min(i, autoRollbackSteps.length) - 1; r >= 0; r--) {
+          const rollbackStep = autoRollbackSteps[r];
+          if (!rollbackStep) continue;
           try {
-            await executeWithRetry(autoRollbackSteps[r], accessToken, true);
+            await executeWithRetry(rollbackStep, accessToken, true);
             logger.log(`Rollback step ${r} succeeded`);
           } catch (err) {
             logger.warn(`Rollback step ${r} failed: ${err instanceof Error ? err.message : String(err)}`);
