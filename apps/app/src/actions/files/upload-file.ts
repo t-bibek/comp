@@ -4,7 +4,16 @@ import { BUCKET_NAME, s3Client } from '@/app/s3';
 import { auth } from '@/utils/auth';
 import { logger } from '@/utils/logger';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { getSignedUrl as _getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+// Workaround: bun may install duplicate @smithy/types copies causing
+// S3Client class identity mismatch with the presigner's expected type.
+// The runtime types are compatible — only the private 'handlers' property differs.
+const getSignedUrl = _getSignedUrl as (
+  client: InstanceType<typeof import('@aws-sdk/client-s3').S3Client>,
+  command: import('@aws-sdk/client-s3').GetObjectCommand | import('@aws-sdk/client-s3').PutObjectCommand,
+  options?: { expiresIn?: number },
+) => Promise<string>;
 import { AttachmentEntityType, AttachmentType, db } from '@db/server';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
