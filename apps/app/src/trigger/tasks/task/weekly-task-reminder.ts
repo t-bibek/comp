@@ -14,9 +14,12 @@ export const weeklyTaskReminder = schedules.task({
     const inactivityCutoff = new Date();
     inactivityCutoff.setDate(inactivityCutoff.getDate() - ORG_INACTIVITY_DAYS);
 
-    // Get all organizations that have at least one session updated in the last 90 days
+    // Only email orgs that are active: have access, completed onboarding,
+    // and at least one member logged in within the last 90 days
     const organizations = await db.organization.findMany({
       where: {
+        hasAccess: true,
+        onboardingCompleted: true,
         members: {
           some: {
             user: {
