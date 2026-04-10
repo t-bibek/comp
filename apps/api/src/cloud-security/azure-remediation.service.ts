@@ -19,6 +19,19 @@ export class AzureRemediationService {
     string,
     { plan: AzureFixPlan; timestamp: number }
   >();
+  private readonly PLAN_CACHE_MAX = 100;
+
+  private evictStalePlans() {
+    if (this.planCache.size <= this.PLAN_CACHE_MAX) return;
+    const now = Date.now();
+    for (const [key, entry] of this.planCache) {
+      if (now - entry.timestamp > PLAN_CACHE_TTL) this.planCache.delete(key);
+    }
+    while (this.planCache.size > this.PLAN_CACHE_MAX) {
+      const firstKey = this.planCache.keys().next().value;
+      if (firstKey) this.planCache.delete(firstKey); else break;
+    }
+  }
 
   constructor(
     private readonly credentialVaultService: CredentialVaultService,
@@ -93,6 +106,7 @@ export class AzureRemediationService {
 
     // Cache plan for execute
     const cacheKey = `${params.connectionId}:${params.checkResultId}:${params.remediationKey}`;
+    this.evictStalePlans();
     this.planCache.set(cacheKey, { plan, timestamp: Date.now() });
 
     return this.buildPreviewResponse(plan);

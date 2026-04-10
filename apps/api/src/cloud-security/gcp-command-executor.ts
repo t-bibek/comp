@@ -44,6 +44,16 @@ export async function executeGcpPlanSteps(params: {
   autoRollbackSteps?: GcpApiStep[];
   isRollback?: boolean;
 }): Promise<GcpExecutionResult> {
+  // Validate ALL step URLs before executing any — prevents SSRF on read/fix/rollback steps
+  const allSteps = [...params.steps, ...(params.autoRollbackSteps ?? [])];
+  const validationErrors = validateGcpPlanSteps(allSteps);
+  if (validationErrors.length > 0) {
+    return {
+      results: [],
+      error: { stepIndex: 0, step: params.steps[0]!, message: `URL validation failed: ${validationErrors.join('; ')}` },
+    };
+  }
+
   const results: GcpStepResult[] = [];
 
   for (let i = 0; i < params.steps.length; i++) {

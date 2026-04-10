@@ -14,6 +14,21 @@ export class RemediationService {
   private readonly logger = new Logger(RemediationService.name);
   /** Cache fix plans between preview and execute to avoid double AI calls. */
   private readonly planCache = new Map<string, { plan: FixPlan; timestamp: number; permissionsList?: string[] }>();
+  private readonly PLAN_CACHE_MAX = 100;
+  private readonly PLAN_CACHE_TTL = 5 * 60 * 1000;
+
+  private evictStalePlans() {
+    if (this.planCache.size <= this.PLAN_CACHE_MAX) return;
+    const now = Date.now();
+    for (const [key, entry] of this.planCache) {
+      if (now - entry.timestamp > this.PLAN_CACHE_TTL) this.planCache.delete(key);
+    }
+    // If still over limit, delete oldest
+    while (this.planCache.size > this.PLAN_CACHE_MAX) {
+      const firstKey = this.planCache.keys().next().value;
+      if (firstKey) this.planCache.delete(firstKey); else break;
+    }
+  }
 
   constructor(
     private readonly credentialVaultService: CredentialVaultService,
@@ -241,6 +256,7 @@ export class RemediationService {
           }
 
           // Cache the refined plan + permissions for execute and Recheck
+          this.evictStalePlans();
           this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, { plan: refined, timestamp: Date.now(), permissionsList });
 
           return {
@@ -266,6 +282,7 @@ export class RemediationService {
     }
 
     // Fallback: show initial AI plan without real data
+    this.evictStalePlans();
     this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, { plan, timestamp: Date.now(), permissionsList: plan.requiredPermissions });
 
     return {

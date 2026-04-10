@@ -37,6 +37,17 @@ export async function executeAzurePlanSteps(params: {
   isRollback?: boolean;
 }): Promise<AzureExecutionResult> {
   const { steps, accessToken, autoRollbackSteps, isRollback } = params;
+
+  // Validate ALL step URLs before executing any — prevents SSRF on read/fix/rollback steps
+  const allSteps = [...steps, ...(autoRollbackSteps ?? [])];
+  const validationErrors = validateAzurePlanSteps(allSteps);
+  if (validationErrors.length > 0) {
+    return {
+      results: [],
+      error: { stepIndex: 0, step: steps[0], message: `URL validation failed: ${validationErrors.join('; ')}` },
+    };
+  }
+
   const results: AzureStepResult[] = [];
 
   for (let i = 0; i < steps.length; i++) {

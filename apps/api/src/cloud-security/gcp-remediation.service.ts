@@ -16,6 +16,20 @@ export class GcpRemediationService {
     string,
     { plan: GcpFixPlan; timestamp: number }
   >();
+  private readonly PLAN_CACHE_MAX = 100;
+  private readonly PLAN_CACHE_TTL = 5 * 60 * 1000;
+
+  private evictStalePlans() {
+    if (this.planCache.size <= this.PLAN_CACHE_MAX) return;
+    const now = Date.now();
+    for (const [key, entry] of this.planCache) {
+      if (now - entry.timestamp > this.PLAN_CACHE_TTL) this.planCache.delete(key);
+    }
+    while (this.planCache.size > this.PLAN_CACHE_MAX) {
+      const firstKey = this.planCache.keys().next().value;
+      if (firstKey) this.planCache.delete(firstKey); else break;
+    }
+  }
 
   constructor(
     private readonly credentialVaultService: CredentialVaultService,
@@ -119,6 +133,7 @@ export class GcpRemediationService {
             };
           }
 
+          this.evictStalePlans();
           this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, {
             plan: refined,
             timestamp: Date.now(),
@@ -132,6 +147,7 @@ export class GcpRemediationService {
     }
 
     // Fallback: show initial AI plan without real data
+    this.evictStalePlans();
     this.planCache.set(`${params.connectionId}:${params.checkResultId}:${params.remediationKey}`, {
       plan,
       timestamp: Date.now(),
