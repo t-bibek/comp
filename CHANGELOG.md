@@ -1,3 +1,10 @@
+## [3.20.2](https://github.com/trycompai/comp/compare/v3.20.1...v3.20.2) (2026-04-10)
+
+
+### Bug Fixes
+
+* respect RBAC roles for device status ([d1d4e69](https://github.com/trycompai/comp/commit/d1d4e6906db1dd919007e092cf123a0dc50efd55))
+
 ## [3.20.1](https://github.com/trycompai/comp/compare/v3.20.0...v3.20.1) (2026-04-10)
 
 
