@@ -1,4 +1,4 @@
-import { db } from '@db';
+import { db } from '@db/server';
 import { logger, metadata, task } from '@trigger.dev/sdk';
 
 type FindingStatus = 'pending' | 'fixing' | 'fixed' | 'skipped' | 'failed' | 'cancelled' | 'needs_permissions';
