@@ -61,18 +61,23 @@ export const cancelOnboarding = authActionClientWithoutOrg
       orderBy: { createdAt: 'desc' },
     });
 
+    // Must have a fallback org — refuse to delete if there's nowhere to go.
+    // The UI guards this too, but a race condition could remove fallback orgs
+    // between page render and action execution.
+    if (!fallbackOrg) {
+      return { success: false, error: 'No other organization to switch to.' };
+    }
+
     // Switch active org BEFORE deletion so the session never
     // references a deleted org (even if the client redirect is slow).
-    if (fallbackOrg) {
-      try {
-        await auth.api.setActiveOrganization({
-          headers: await headers(),
-          body: { organizationId: fallbackOrg.organizationId },
-        });
-      } catch (error) {
-        console.error('Failed to switch to fallback org:', error);
-        return { success: false, error: 'Failed to switch organization.' };
-      }
+    try {
+      await auth.api.setActiveOrganization({
+        headers: await headers(),
+        body: { organizationId: fallbackOrg.organizationId },
+      });
+    } catch (error) {
+      console.error('Failed to switch to fallback org:', error);
+      return { success: false, error: 'Failed to switch organization.' };
     }
 
     // Delete the incomplete org (cascade handles related records)
