@@ -619,7 +619,7 @@ export function BatchRemediationDialog({
                           const result = await retryFinding(connectionId, f.id, orig.key);
                           if (result.status === 'fixed') {
                             toast.success(`Fixed: ${f.title}`);
-                            findingsResponse?.mutate?.();
+                            onComplete?.();
                           } else if (result.status === 'needs_permissions') {
                             toast.error('Still missing permissions');
                           } else {
