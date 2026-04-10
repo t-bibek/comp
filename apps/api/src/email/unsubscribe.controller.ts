@@ -1,7 +1,7 @@
 import { Controller, Post, Body, Query, HttpCode, BadRequestException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { db } from '@db';
-import { generateUnsubscribeToken } from '@trycompai/email/lib/unsubscribe';
+import { generateUnsubscribeToken } from '@trycompai/email';
 import { timingSafeEqual } from 'node:crypto';
 
 @ApiTags('Email - Unsubscribe')
