@@ -52,7 +52,8 @@ export function BrowserAutomationsList({
   const canCreateIntegration = hasPermission('integration', 'create');
   const canUpdateIntegration = hasPermission('integration', 'update');
 
-  const nextRun = automations.length > 0 ? getNextScheduledRun() : null;
+  const hasEnabledAutomations = automations.some((a) => a.isEnabled);
+  const nextRun = hasEnabledAutomations ? getNextScheduledRun() : null;
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
