@@ -218,6 +218,12 @@ export class AzureRemediationService {
         this.logger.log(`Fix step: ${step.method} ${step.url} — ${step.purpose}`);
       }
 
+      // Validate URLs before execution to prevent SSRF (especially after cache-miss regeneration)
+      const validationErrors = validateAzurePlanSteps(plan.fixSteps);
+      if (validationErrors.length > 0) {
+        throw new Error(`Fix plan validation failed: ${validationErrors.join('; ')}`);
+      }
+
       let fixResult = await executeAzurePlanSteps({
         steps: plan.fixSteps,
         accessToken,
