@@ -130,13 +130,13 @@ export function useOnboardingForm({
         // Clear answers after successful creation
         setSavedAnswers({});
       } else {
-        toast.error('Failed to create organization');
+        toast.error(data?.error || 'Failed to create organization');
         setIsFinalizing(false);
         setIsOnboarding(false);
       }
     },
-    onError: () => {
-      toast.error('Failed to create organization');
+    onError: ({ error }) => {
+      toast.error(error.serverError || 'Failed to create organization');
       setIsFinalizing(false);
       setIsOnboarding(false);
     },

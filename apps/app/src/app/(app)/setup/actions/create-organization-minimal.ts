@@ -27,6 +27,8 @@ export const createOrganizationMinimal = authActionClientWithoutOrg
     },
   })
   .action(async ({ parsedInput, ctx }) => {
+    let createdOrgId: string | undefined;
+
     try {
       const session = await auth.api.getSession({
         headers: await headers(),
@@ -83,6 +85,7 @@ export const createOrganizationMinimal = authActionClientWithoutOrg
       });
 
       const orgId = newOrg.id;
+      createdOrgId = orgId;
 
       // Get the member that was created with the organization (the owner)
       const ownerMember = await db.member.findFirst({
@@ -138,6 +141,15 @@ export const createOrganizationMinimal = authActionClientWithoutOrg
       };
     } catch (error) {
       console.error('Error during minimal organization creation:', error);
+
+      // Clean up partially created org to prevent orphans on retry
+      if (createdOrgId) {
+        try {
+          await db.organization.delete({ where: { id: createdOrgId } });
+        } catch (cleanupError) {
+          console.error('Failed to clean up org after creation error:', cleanupError);
+        }
+      }
 
       if (error instanceof Error) {
         return {
