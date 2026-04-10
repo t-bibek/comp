@@ -15,7 +15,7 @@ export async function startBatchFix(
   try {
     // Step 1: Create batch record in DB via API
     const api = serverApi;
-    const batchResp = await api.post('/v1/cloud-security/remediation/batch', {
+    const batchResp = await api.post<{ data: { id: string } }>('/v1/cloud-security/remediation/batch', {
       connectionId: input.connectionId,
       findings: input.findings,
     });
@@ -24,7 +24,7 @@ export async function startBatchFix(
       return { error: 'Failed to create batch record' };
     }
 
-    const batchId = batchResp.data.data.id as string;
+    const batchId = batchResp.data.data.id;
 
     // Step 2: Trigger the API-layer task
     const handle = await tasks.trigger('remediate-batch', {
