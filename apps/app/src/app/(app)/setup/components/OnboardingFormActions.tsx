@@ -11,6 +11,7 @@ interface OnboardingFormActionsProps {
   isOnboarding: boolean; // For the loader in the Finish button
   isCurrentStepValid: boolean;
   onPrefillAll?: () => void;
+  hasOtherOrgs?: boolean;
 }
 
 export function OnboardingFormActions({
@@ -21,6 +22,7 @@ export function OnboardingFormActions({
   isOnboarding,
   isCurrentStepValid,
   onPrefillAll,
+  hasOtherOrgs = false,
 }: OnboardingFormActionsProps) {
   // Check if we're on localhost - use useState/useEffect to avoid hydration mismatch
   const [isLocalhost, setIsLocalhost] = useState(false);
@@ -38,6 +40,17 @@ export function OnboardingFormActions({
 
   return (
     <div className="flex items-center gap-2">
+      {hasOtherOrgs && (
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-muted-foreground"
+          onClick={() => { window.location.assign('/'); }}
+          disabled={isSubmitting}
+        >
+          Cancel
+        </Button>
+      )}
       {isLocalhost && onPrefillAll && stepIndex === 0 && (
         <Button
           type="button"
