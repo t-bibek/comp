@@ -346,11 +346,6 @@ function CredentialSetup({
   };
 
   const handleConnect = useCallback(async () => {
-    if (!hasConfigurableFields) {
-      toast.error('This integration setup is not configured yet.');
-      return;
-    }
-
     const newErrors: Record<string, string> = {};
     for (const field of fields) {
       const value = credentials[field.id];
@@ -381,7 +376,7 @@ function CredentialSetup({
     } finally {
       setConnecting(false);
     }
-  }, [fields, credentials, createConnection, hasConfigurableFields, provider, onConnected]);
+  }, [fields, credentials, createConnection, provider, onConnected]);
 
   return (
     <div className="py-6 space-y-6">
@@ -408,7 +403,7 @@ function CredentialSetup({
               ))
             ) : (
               <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
-                Setup fields are not configured for this integration yet.
+                No additional setup fields are required for this integration.
                 {provider.docsUrl ? (
                   <>
                     {' '}
@@ -427,8 +422,8 @@ function CredentialSetup({
             )}
           </div>
           <div className="border-t bg-muted/30 px-6 py-5 rounded-b-xl">
-            <Button onClick={handleConnect} disabled={connecting || !hasConfigurableFields} loading={connecting}>
-              {connecting ? 'Connecting...' : !hasConfigurableFields ? 'Setup unavailable' : (
+            <Button onClick={handleConnect} disabled={connecting} loading={connecting}>
+              {connecting ? 'Connecting...' : (
                 <>
                   Connect account
                   <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
