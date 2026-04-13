@@ -4,8 +4,8 @@ const CLOUD_RECONNECT_PROVIDER_IDS = new Set(['aws', 'gcp', 'azure']);
  * Connections created before this UTC timestamp require re-connection.
  * This rollout date is fixed intentionally so the behavior is stable over time.
  */
-export const CLOUD_RECONNECT_CUTOFF_ISO_UTC = '2026-04-13T00:00:00.000Z';
-export const CLOUD_RECONNECT_CUTOFF_LABEL = 'April 13, 2026';
+export const CLOUD_RECONNECT_CUTOFF_ISO_UTC = '2026-04-13T18:16:52.000Z';
+export const CLOUD_RECONNECT_CUTOFF_LABEL = 'April 13, 2026 at 18:16 UTC';
 
 const CLOUD_RECONNECT_CUTOFF_MS = new Date(CLOUD_RECONNECT_CUTOFF_ISO_UTC).getTime();
 
