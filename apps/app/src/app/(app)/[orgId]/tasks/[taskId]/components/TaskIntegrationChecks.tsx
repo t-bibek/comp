@@ -766,9 +766,13 @@ export function TaskIntegrationChecks({
             <AlertDialogDescription>
               {disconnectTarget ? (
                 <>
-                  <strong>{disconnectTarget.integrationName}</strong>
+                  <strong>
+                    {disconnectTarget.integrationName ||
+                      disconnectTarget.checkName}
+                  </strong>
                   {disconnectTarget.checkName !==
-                    disconnectTarget.integrationName && (
+                    (disconnectTarget.integrationName ||
+                      disconnectTarget.checkName) && (
                     <>
                       {' '}
                       (<strong>{disconnectTarget.checkName}</strong> check)
