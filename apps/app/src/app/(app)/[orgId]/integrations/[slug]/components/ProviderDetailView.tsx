@@ -71,9 +71,12 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
   const isCloudProvider = provider.category === 'Cloud';
   const selectedConnectionRequiresReconnect = useMemo(() => {
     if (!isCloudProvider || !selectedConnection) return false;
+    const metadata = (selectedConnection.metadata || {}) as Record<string, unknown>;
     return requiresCloudReconnect({
       providerId: provider.id,
       createdAt: selectedConnection.createdAt,
+      reconnectedAt:
+        typeof metadata.reconnectedAt === 'string' ? metadata.reconnectedAt : null,
       status: selectedConnection.status,
     });
   }, [isCloudProvider, provider.id, selectedConnection]);

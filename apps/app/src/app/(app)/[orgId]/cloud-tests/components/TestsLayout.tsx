@@ -108,6 +108,7 @@ export function TestsLayout({ initialFindings, initialProviders, orgId }: TestsL
         requiresCloudReconnect({
           providerId: provider.integrationId,
           createdAt: provider.createdAt,
+          reconnectedAt: provider.reconnectedAt,
           isLegacy: provider.isLegacy,
           status: provider.status,
         }),
@@ -331,6 +332,7 @@ export function TestsLayout({ initialFindings, initialProviders, orgId }: TestsL
           requiresCloudReconnect({
             providerId: provider.integrationId,
             createdAt: provider.createdAt,
+            reconnectedAt: provider.reconnectedAt,
             isLegacy: provider.isLegacy,
             status: provider.status,
           })

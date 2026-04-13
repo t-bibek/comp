@@ -12,6 +12,7 @@ const CLOUD_RECONNECT_CUTOFF_MS = new Date(CLOUD_RECONNECT_CUTOFF_ISO_UTC).getTi
 type ReconnectCandidate = {
   providerId: string;
   createdAt?: Date | string | null;
+  reconnectedAt?: Date | string | null;
   isLegacy?: boolean;
   status?: string | null;
 };
@@ -25,6 +26,13 @@ export function requiresCloudReconnect(candidate: ReconnectCandidate): boolean {
 
   // Legacy cloud connections come from the old integration table and should be re-added.
   if (candidate.isLegacy) return true;
+
+  if (candidate.reconnectedAt) {
+    const reconnectedAt = new Date(candidate.reconnectedAt);
+    if (!Number.isNaN(reconnectedAt.getTime())) {
+      return reconnectedAt.getTime() < CLOUD_RECONNECT_CUTOFF_MS;
+    }
+  }
 
   if (!candidate.createdAt) return false;
 

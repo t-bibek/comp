@@ -74,4 +74,26 @@ describe('requiresCloudReconnect', () => {
       }),
     ).toBe(true);
   });
+
+  it('returns false when connection was reconnected after cutoff', () => {
+    expect(
+      requiresCloudReconnect({
+        providerId: 'gcp',
+        createdAt: '2026-04-12T12:00:00.000Z',
+        reconnectedAt: '2026-04-13T20:00:00.000Z',
+        status: 'active',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns true when reconnect marker is before cutoff', () => {
+    expect(
+      requiresCloudReconnect({
+        providerId: 'azure',
+        createdAt: '2026-04-10T12:00:00.000Z',
+        reconnectedAt: '2026-04-13T17:00:00.000Z',
+        status: 'active',
+      }),
+    ).toBe(true);
+  });
 });

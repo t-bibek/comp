@@ -315,6 +315,23 @@ export class OAuthController {
 
       // Store tokens and mark connection as active
       await this.credentialVaultService.storeOAuthTokens(connection.id, tokens);
+
+      // Mark cloud OAuth reconnect completion so reconnect banners clear after successful OAuth.
+      if (manifest.category === 'Cloud') {
+        const metadata =
+          connection.metadata &&
+          typeof connection.metadata === 'object' &&
+          !Array.isArray(connection.metadata)
+            ? (connection.metadata as Record<string, unknown>)
+            : {};
+        connection = await this.connectionRepository.update(connection.id, {
+          metadata: {
+            ...metadata,
+            reconnectedAt: new Date().toISOString(),
+          },
+        });
+      }
+
       await this.connectionService.activateConnection(connection.id);
 
       // Provider-specific post-OAuth actions
