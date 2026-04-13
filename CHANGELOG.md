@@ -1,3 +1,10 @@
+## [3.21.2](https://github.com/trycompai/comp/compare/v3.21.1...v3.21.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* **trust:** update PCI DSS trust portal badge icon ([d2e7fdf](https://github.com/trycompai/comp/commit/d2e7fdfb5bf21c42141250fadb15c8ccc5aa6bc9))
+
 ## [3.21.1](https://github.com/trycompai/comp/compare/v3.21.0...v3.21.1) (2026-04-13)
 
 
