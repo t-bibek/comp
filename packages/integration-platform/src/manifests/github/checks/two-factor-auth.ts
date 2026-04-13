@@ -3,7 +3,7 @@
  * Verifies that all organization members have 2FA enabled.
  *
  * Uses GET /orgs/{org}/members?filter=2fa_disabled to find members
- * without 2FA. Requires the 'admin:org' OAuth scope.
+ * without 2FA. The filter is only available to organization owners.
  *
  * @see https://docs.github.com/en/rest/orgs/members#list-organization-members
  */
@@ -15,21 +15,46 @@ import type { GitHubOrg } from '../types';
 interface GitHubOrgMember {
   login: string;
   id: number;
-  avatar_url: string;
   html_url: string;
-  type: string;
-  site_admin: boolean;
 }
+
+const MAX_USERNAMES_IN_DESCRIPTION = 20;
+const MAX_USERNAMES_IN_EVIDENCE = 100;
+
+const isOwnerPermissionError = (errorMsg: string): boolean => {
+  const lower = errorMsg.toLowerCase();
+
+  if (lower.includes('403') || lower.includes('forbidden')) return true;
+  if (lower.includes('must be an organization owner') || lower.includes('organization owners')) {
+    return true;
+  }
+
+  // GitHub documents 422 for this endpoint when filter constraints fail.
+  if (lower.includes('422') || lower.includes('unprocessable') || lower.includes('validation failed')) {
+    return true;
+  }
+
+  return false;
+};
+
+const formatUsernamesPreview = (members: GitHubOrgMember[]): string => {
+  const preview = members.slice(0, MAX_USERNAMES_IN_DESCRIPTION).map((member) => `@${member.login}`);
+  const remaining = members.length - preview.length;
+
+  if (remaining > 0) {
+    return `${preview.join(', ')} and ${remaining} more`;
+  }
+  return preview.join(', ');
+};
 
 export const twoFactorAuthCheck: IntegrationCheck = {
   id: 'two_factor_auth',
   name: '2FA Enforcement',
   description:
     'Verify that all GitHub organization members have two-factor authentication enabled',
+  service: 'code-security',
   taskMapping: TASK_TEMPLATES.twoFactorAuth,
   defaultSeverity: 'high',
-
-  variables: [],
 
   run: async (ctx) => {
     // Step 1: Get all orgs the authenticated user belongs to
@@ -70,27 +95,31 @@ export const twoFactorAuthCheck: IntegrationCheck = {
     // Step 2: For each org, check for members without 2FA
     for (const org of orgs) {
       ctx.log(`Checking 2FA for organization: ${org.login}`);
+      const orgSlug = encodeURIComponent(org.login);
+      const checkedAt = new Date().toISOString();
 
       let membersWithout2FA: GitHubOrgMember[];
       try {
         membersWithout2FA = await ctx.fetchAllPages<GitHubOrgMember>(
-          `/orgs/${org.login}/members?filter=2fa_disabled`,
+          `/orgs/${orgSlug}/members?filter=2fa_disabled`,
         );
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
 
-        // 403 usually means the token lacks admin:org scope or user isn't an org owner
-        if (errorMsg.includes('403') || errorMsg.includes('Forbidden')) {
+        // GitHub returns 422 when the caller is not an org owner for 2fa_* filters.
+        if (isOwnerPermissionError(errorMsg)) {
           ctx.warn(
-            `Cannot check 2FA for ${org.login}: insufficient permissions. The admin:org scope and org owner/admin role are required.`,
+            `Cannot check 2FA for ${org.login}: the account must be an organization owner to use the 2FA filter.`,
           );
           ctx.fail({
             title: `Cannot verify 2FA for ${org.login}`,
-            description: `Insufficient permissions to check 2FA status. The filter=2fa_disabled parameter requires the admin:org OAuth scope and the authenticated user must be an organization owner or admin.`,
+            description:
+              'Insufficient permissions to check 2FA status. The `filter=2fa_disabled` parameter is only available to organization owners on GitHub.',
             resourceType: 'organization',
             resourceId: org.login,
             severity: 'medium',
-            remediation: `Reconnect the GitHub integration with an organization owner account. The integration will request the admin:org scope needed to check 2FA status.`,
+            remediation:
+              'Reconnect the GitHub integration with an account that is an owner of this organization.',
           });
           continue;
         }
@@ -108,33 +137,32 @@ export const twoFactorAuthCheck: IntegrationCheck = {
       }
 
       // Step 3: Also fetch total member count for context
-      let totalMembers: GitHubOrgMember[];
+      let totalCount: number | null = null;
       try {
-        totalMembers = await ctx.fetchAllPages<GitHubOrgMember>(
-          `/orgs/${org.login}/members`,
-        );
-      } catch {
+        const totalMembers = await ctx.fetchAllPages<GitHubOrgMember>(`/orgs/${orgSlug}/members`);
+        totalCount = totalMembers.length;
+      } catch (error) {
         // Non-critical: we can still report 2FA findings without total count
-        totalMembers = [];
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        ctx.warn(`Could not fetch total member count for ${org.login}: ${errorMsg}`);
       }
 
-      const totalCount = totalMembers.length;
       const without2FACount = membersWithout2FA.length;
 
       if (without2FACount === 0) {
         ctx.pass({
           title: `All members have 2FA enabled in ${org.login}`,
           description:
-            totalCount > 0
+            typeof totalCount === 'number' && totalCount > 0
               ? `All ${totalCount} members of the ${org.login} organization have two-factor authentication enabled.`
-              : `No members without 2FA found in the ${org.login} organization.`,
+              : `No members without 2FA were returned for ${org.login}.`,
           resourceType: 'organization',
           resourceId: org.login,
           evidence: {
             organization: org.login,
             totalMembers: totalCount,
             membersWithout2FA: 0,
-            checkedAt: new Date().toISOString(),
+            checkedAt,
           },
         });
       } else {
@@ -152,7 +180,7 @@ export const twoFactorAuthCheck: IntegrationCheck = {
               username: member.login,
               userId: member.id,
               profileUrl: member.html_url,
-              checkedAt: new Date().toISOString(),
+              checkedAt,
             },
           });
         }
@@ -160,7 +188,7 @@ export const twoFactorAuthCheck: IntegrationCheck = {
         // Also emit a summary
         ctx.fail({
           title: `${without2FACount} member(s) without 2FA in ${org.login}`,
-          description: `${without2FACount} out of ${totalCount || 'unknown'} members in the ${org.login} organization do not have two-factor authentication enabled: ${membersWithout2FA.map((m) => `@${m.login}`).join(', ')}`,
+          description: `${without2FACount} out of ${totalCount ?? 'unknown'} members in the ${org.login} organization do not have two-factor authentication enabled: ${formatUsernamesPreview(membersWithout2FA)}`,
           resourceType: 'organization',
           resourceId: `${org.login}/2fa-summary`,
           severity: 'high',
@@ -169,8 +197,11 @@ export const twoFactorAuthCheck: IntegrationCheck = {
             organization: org.login,
             totalMembers: totalCount,
             membersWithout2FA: without2FACount,
-            usernames: membersWithout2FA.map((m) => m.login),
-            checkedAt: new Date().toISOString(),
+            sampleUsernames: membersWithout2FA
+              .slice(0, MAX_USERNAMES_IN_EVIDENCE)
+              .map((member) => member.login),
+            usernamesTruncated: membersWithout2FA.length > MAX_USERNAMES_IN_EVIDENCE,
+            checkedAt,
           },
         });
       }
