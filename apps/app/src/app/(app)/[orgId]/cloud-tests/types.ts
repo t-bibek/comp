@@ -23,6 +23,7 @@ export interface Provider {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  reconnectedAt?: Date | string | null;
   isLegacy?: boolean;
   variables?: Record<string, unknown> | null;
   requiredVariables?: string[];

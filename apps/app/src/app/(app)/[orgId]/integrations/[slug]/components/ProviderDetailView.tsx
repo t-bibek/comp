@@ -1,5 +1,6 @@
 'use client';
 
+import { ConnectIntegrationDialog } from '@/components/integrations/ConnectIntegrationDialog';
 import {
   useConnectionServices,
   useIntegrationConnections,
@@ -7,6 +8,10 @@ import {
   type ConnectionListItem,
   type IntegrationProvider,
 } from '@/hooks/use-integration-platform';
+import {
+  CLOUD_RECONNECT_CUTOFF_LABEL,
+  requiresCloudReconnect,
+} from '@/lib/cloud-reconnect-policy';
 import { api } from '@/lib/api-client';
 import {
   Breadcrumb,
@@ -31,10 +36,11 @@ interface ProviderDetailViewProps {
 
 export function ProviderDetailView({ provider, initialConnections }: ProviderDetailViewProps) {
   const { orgId } = useParams<{ orgId: string }>();
-  const { connections: allConnections } = useIntegrationConnections();
+  const { connections: allConnections, refresh: refreshConnections } = useIntegrationConnections();
   const { startOAuth } = useIntegrationMutations();
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [reconnectDialogOpen, setReconnectDialogOpen] = useState(false);
 
   const connections = useMemo(() => {
     const live = allConnections.filter((c) => c.providerSlug === provider.id);
@@ -63,6 +69,17 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
       }
     ).services ?? [];
   const isCloudProvider = provider.category === 'Cloud';
+  const selectedConnectionRequiresReconnect = useMemo(() => {
+    if (!isCloudProvider || !selectedConnection) return false;
+    const metadata = (selectedConnection.metadata || {}) as Record<string, unknown>;
+    return requiresCloudReconnect({
+      providerId: provider.id,
+      createdAt: selectedConnection.createdAt,
+      reconnectedAt:
+        typeof metadata.reconnectedAt === 'string' ? metadata.reconnectedAt : null,
+      status: selectedConnection.status,
+    });
+  }, [isCloudProvider, provider.id, selectedConnection]);
 
   // Services hook for the selected connection
   const {
@@ -146,12 +163,15 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
   }, [isCloudProvider, isConnected, selectedConnection?.id, refreshServices]);
 
   const handleConnect = useCallback(async () => {
-    if (provider.authType === 'oauth2' && provider.oauthConfigured) {
+    if (provider.authType === 'oauth2') {
       const redirectUrl = `${window.location.origin}/${orgId}/integrations/${provider.id}?success=true`;
       const result = await startOAuth(provider.id, redirectUrl);
       if (result?.authorizationUrl) {
         window.location.href = result.authorizationUrl;
+      } else {
+        toast.error(result.error || 'Failed to start connection');
       }
+      return;
     } else {
       // For non-OAuth, show the inline add-account form
       setShowAddAccount(true);
@@ -181,6 +201,20 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
           onOpenSettings={() => setSettingsOpen(true)}
           onAddAccount={() => void handleConnect()}
         />
+
+        {selectedConnectionRequiresReconnect && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Reconnect this account</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                This connection was created before {CLOUD_RECONNECT_CUTOFF_LABEL}. Reconnect it to keep scans and remediation fully reliable.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setReconnectDialogOpen(true)}>
+              Reconnect
+            </Button>
+          </div>
+        )}
 
         {/* Content: zero state OR findings */}
         {!isConnected && (
@@ -248,6 +282,22 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
           orgId={orgId}
           onConnected={() => setShowAddAccount(false)}
           onOAuthConnect={handleConnect}
+        />
+      )}
+
+      {selectedConnectionRequiresReconnect && (
+        <ConnectIntegrationDialog
+          open={reconnectDialogOpen}
+          onOpenChange={setReconnectDialogOpen}
+          integrationId={provider.id}
+          integrationName={provider.name}
+          integrationLogoUrl={provider.logoUrl}
+          initialView="list"
+          onConnected={() => {
+            setReconnectDialogOpen(false);
+            setShowAddAccount(false);
+            refreshConnections();
+          }}
         />
       )}
     </>

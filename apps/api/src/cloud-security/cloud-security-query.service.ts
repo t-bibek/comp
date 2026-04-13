@@ -17,6 +17,7 @@ export interface CloudProvider {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  reconnectedAt?: Date;
   isLegacy: boolean;
   variables: Record<string, unknown> | null;
   requiredVariables: string[];
@@ -96,6 +97,12 @@ export class CloudSecurityQueryService {
     const newProviders: CloudProvider[] = newConnections.map((conn) => {
       const metadata = (conn.metadata || {}) as Record<string, unknown>;
       const manifest = getManifest(conn.provider.slug);
+      const reconnectMarker = metadata.reconnectedAt;
+      const reconnectedAt =
+        typeof reconnectMarker === 'string' &&
+        !Number.isNaN(new Date(reconnectMarker).getTime())
+          ? new Date(reconnectMarker)
+          : undefined;
       return {
         id: conn.id,
         integrationId: conn.provider.slug,
@@ -109,6 +116,7 @@ export class CloudSecurityQueryService {
         status: conn.status,
         createdAt: conn.createdAt,
         updatedAt: conn.updatedAt,
+        reconnectedAt,
         isLegacy: false,
         variables: (conn.variables as Record<string, unknown>) ?? null,
         requiredVariables: getRequiredVariables(conn.provider.slug),

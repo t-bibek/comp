@@ -39,7 +39,11 @@ export class ConnectionRepository {
     organizationId: string,
   ): Promise<IntegrationConnection | null> {
     return db.integrationConnection.findFirst({
-      where: { providerId, organizationId },
+      where: {
+        providerId,
+        organizationId,
+        status: { not: 'disconnected' },
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         provider: true,
