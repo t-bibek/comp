@@ -35,17 +35,40 @@ describe('GcpSetupGuide', () => {
             name: 'Enable Security Command Center API',
             success: false,
             error: 'Permission denied',
-            actionUrl:
-              'https://console.cloud.google.com/apis/library/securitycenter.googleapis.com',
-            actionText: 'Open API',
+            requiredForScan: true,
+            resolveAction: {
+              label: 'Resolve this',
+              method: 'POST',
+              endpoint: '/v1/cloud-security/setup-gcp/conn_1/resolve-step',
+              body: { stepId: 'enable_security_command_center_api' },
+            },
+            adminActions: [
+              {
+                kind: 'link',
+                label: 'Open API',
+                url: 'https://console.cloud.google.com/apis/library/securitycenter.googleapis.com',
+              },
+            ],
           },
           {
             id: 'grant_findings_viewer_role',
             name: 'Grant Findings Viewer role',
             success: false,
             error: 'Need org admin role',
-            actionUrl: 'https://console.cloud.google.com/iam-admin/iam',
-            actionText: 'Open IAM',
+            requiredForScan: true,
+            resolveAction: {
+              label: 'Resolve this',
+              method: 'POST',
+              endpoint: '/v1/cloud-security/setup-gcp/conn_1/resolve-step',
+              body: { stepId: 'grant_findings_viewer_role' },
+            },
+            adminActions: [
+              {
+                kind: 'link',
+                label: 'Open IAM',
+                url: 'https://console.cloud.google.com/iam-admin/iam',
+              },
+            ],
           },
         ],
       },
@@ -61,7 +84,9 @@ describe('GcpSetupGuide', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByText('Some steps need manual setup:')).toBeInTheDocument(),
+      expect(
+        screen.getByText('Some required setup steps need manual action:'),
+      ).toBeInTheDocument(),
     );
 
     expect(
@@ -76,6 +101,7 @@ describe('GcpSetupGuide', () => {
       'href',
       'https://console.cloud.google.com/iam-admin/iam',
     );
-    expect(screen.getByRole('button', { name: 'Retry setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resolve all' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Resolve this' })).toHaveLength(2);
   });
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useApi } from '@/hooks/use-api';
-import { Check, ExternalLink, Loader2, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -19,6 +19,17 @@ interface SetupStep {
   error?: string;
   actionUrl?: string;
   actionText?: string;
+  requiredForScan?: boolean;
+  resolveAction?: {
+    label: string;
+    method: 'POST';
+    endpoint: string;
+    body: { stepId: string };
+  };
+  adminActions?: Array<
+    | { kind: 'link'; label: string; url: string }
+    | { kind: 'command'; label: string; command: string }
+  >;
 }
 
 const AUTO_FIX_ROLES = [
@@ -36,6 +47,8 @@ export function GcpSetupGuide({
 }: GcpSetupGuideProps) {
   const api = useApi();
   const [isSettingUp, setIsSettingUp] = useState(false);
+  const [resolvingStepId, setResolvingStepId] = useState<string | null>(null);
+  const [copiedCommandKey, setCopiedCommandKey] = useState<string | null>(null);
   const [setupResult, setSetupResult] = useState<{
     email: string | null;
     steps: SetupStep[];
@@ -51,6 +64,9 @@ export function GcpSetupGuide({
     handleAutoSetup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const hasBlockingFailuresForSteps = (steps: SetupStep[]) =>
+    steps.some((step) => !step.success && step.requiredForScan !== false);
 
   const handleAutoSetup = async () => {
     setIsSettingUp(true);
@@ -70,8 +86,9 @@ export function GcpSetupGuide({
         setSetupResult(resp.data);
         const succeeded = resp.data.steps.filter((s) => s.success).length;
         const total = resp.data.steps.length;
-        if (succeeded === total) {
-          toast.success('GCP setup complete — running first scan...');
+        const hasBlockingFailures = hasBlockingFailuresForSteps(resp.data.steps);
+        if (!hasBlockingFailures) {
+          toast.success('Required setup complete — running first scan...');
           onRunScan();
         } else {
           toast.message(`${succeeded}/${total} steps completed. See details below.`);
@@ -84,11 +101,84 @@ export function GcpSetupGuide({
     }
   };
 
+  const handleResolveStep = async (step: SetupStep) => {
+    if (!step.resolveAction) return;
+    setResolvingStepId(step.id);
+    try {
+      const resp = await api.post<{
+        email: string | null;
+        step: SetupStep;
+        organizationId?: string;
+      }>(step.resolveAction.endpoint, step.resolveAction.body);
+
+      if (resp.error || !resp.data?.step) {
+        toast.error(typeof resp.error === 'string' ? resp.error : 'Could not resolve this step');
+        return;
+      }
+
+      const wasBlocking = setupResult ? hasBlockingFailuresForSteps(setupResult.steps) : true;
+      let nextSteps: SetupStep[] = [];
+
+      setSetupResult((prev) => {
+        const previous = prev ?? {
+          email: resp.data?.email ?? null,
+          organizationId: resp.data?.organizationId,
+          steps: [],
+        };
+        const existing = previous.steps.find((s) => s.id === resp.data!.step.id);
+        nextSteps = existing
+          ? previous.steps.map((s) => (s.id === resp.data!.step.id ? resp.data!.step : s))
+          : [...previous.steps, resp.data!.step];
+
+        return {
+          ...previous,
+          email: resp.data?.email ?? previous.email,
+          organizationId: resp.data?.organizationId ?? previous.organizationId,
+          steps: nextSteps,
+        };
+      });
+
+      if (resp.data.step.success) {
+        toast.success(`${resp.data.step.name} resolved`);
+      } else {
+        toast.message(`Still blocked: ${resp.data.step.name}`);
+      }
+
+      const isBlockingNow = hasBlockingFailuresForSteps(
+        nextSteps.length > 0 ? nextSteps : setupResult?.steps ?? [],
+      );
+      if (wasBlocking && !isBlockingNow) {
+        toast.success('Required setup complete — running first scan...');
+        onRunScan();
+      }
+    } catch {
+      toast.error('Could not resolve this step');
+    } finally {
+      setResolvingStepId(null);
+    }
+  };
+
+  const handleCopyCommand = async (copyKey: string, command: string) => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopiedCommandKey(copyKey);
+      setTimeout(() => setCopiedCommandKey(null), 1600);
+      toast.success('Command copied');
+    } catch {
+      toast.error('Failed to copy command');
+    }
+  };
+
   const allStepsSucceeded = setupResult?.steps.every((s) => s.success);
   const failedSteps = setupResult?.steps.filter((s) => !s.success) ?? [];
-  const failedActionableSteps = failedSteps.filter(
-    (step) => step.actionUrl && step.actionText,
-  );
+  const failedRequiredSteps = failedSteps.filter((step) => step.requiredForScan !== false);
+  const failedOptionalSteps = failedSteps.filter((step) => step.requiredForScan === false);
+  const hasBlockingFailures = failedRequiredSteps.length > 0;
+  const getAdminActions = (step: SetupStep) =>
+    step.adminActions ??
+    (step.actionUrl && step.actionText
+      ? [{ kind: 'link' as const, label: step.actionText, url: step.actionUrl }]
+      : []);
 
   return (
     <div className="space-y-4">
@@ -128,6 +218,7 @@ export function GcpSetupGuide({
                 key={step.id}
                 done={step.success}
                 failed={!step.success}
+                optional={!step.success && step.requiredForScan === false}
                 label={step.name}
                 error={step.error}
               />
@@ -137,31 +228,97 @@ export function GcpSetupGuide({
 
         {/* Manual fallback for failed steps */}
         {setupResult && !allStepsSucceeded && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 dark:border-amber-800/50 dark:bg-amber-950/20">
-            <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-2">
-              Some steps need manual setup:
+          <div
+            className={`rounded-lg border p-3 ${
+              hasBlockingFailures
+                ? 'border-amber-200 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20'
+                : 'border-primary/20 bg-primary/[0.05] dark:border-primary/30 dark:bg-primary/[0.1]'
+            }`}
+          >
+            <p
+              className={`mb-2 text-xs font-medium ${
+                hasBlockingFailures
+                  ? 'text-amber-800 dark:text-amber-300'
+                  : 'text-primary'
+              }`}
+            >
+              {hasBlockingFailures
+                ? 'Some required setup steps need manual action:'
+                : 'Scan can still work. The remaining steps are optional for auto-setup:'}
             </p>
-            <div className="space-y-1.5">
-              {failedActionableSteps.length > 0 ? (
-                failedActionableSteps.map((step) => (
-                  <div key={step.id} className="flex items-center justify-between">
-                    <span className="text-xs text-amber-700 dark:text-amber-400">{step.name}</span>
-                    <a
-                      href={step.actionUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+            <div className="space-y-2">
+              {failedSteps.map((step) => (
+                <div key={step.id} className="rounded-md border bg-background/70 p-2.5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{step.name}</p>
+                      {step.error && (
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">{step.error}</p>
+                      )}
+                    </div>
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                        step.requiredForScan === false
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                      }`}
                     >
-                      {step.actionText} <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
+                      {step.requiredForScan === false ? 'Optional' : 'Required'}
+                    </span>
                   </div>
-                ))
-              ) : (
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Fix the failed permissions in your GCP console, then retry setup.
-                </p>
-              )}
+                  <div className="flex flex-wrap gap-2">
+                    {step.resolveAction && (
+                      <button
+                        type="button"
+                        disabled={resolvingStepId === step.id}
+                        onClick={() => handleResolveStep(step)}
+                        className="inline-flex items-center gap-1 rounded border bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted/50 disabled:opacity-50"
+                      >
+                        {resolvingStepId === step.id ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Resolving...
+                          </>
+                        ) : (
+                          step.resolveAction.label
+                        )}
+                      </button>
+                    )}
+                    {getAdminActions(step).map((action, index) =>
+                      action.kind === 'link' ? (
+                        <a
+                          key={`${step.id}-admin-link-${index}`}
+                          href={action.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded border bg-background px-2 py-1 text-[11px] font-medium text-primary hover:bg-muted/50"
+                        >
+                          {action.label}
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      ) : (
+                        <button
+                          key={`${step.id}-admin-command-${index}`}
+                          type="button"
+                          onClick={() => handleCopyCommand(`${step.id}-${index}`, action.command)}
+                          className="inline-flex items-center gap-1 rounded border bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted/50"
+                        >
+                          <Copy className="h-3 w-3" />
+                          {copiedCommandKey === `${step.id}-${index}`
+                            ? 'Copied'
+                            : action.label}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
+            {!hasBlockingFailures && failedOptionalSteps.length > 0 && (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Optional steps improve automatic setup and future onboarding, but they are not required for reading findings.
+              </p>
+            )}
           </div>
         )}
 
@@ -174,7 +331,7 @@ export function GcpSetupGuide({
               disabled={isSettingUp}
               className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
             >
-              {isSettingUp ? 'Retrying setup...' : 'Retry setup'}
+              {isSettingUp ? 'Resolving...' : 'Resolve all'}
             </button>
             <button
               type="button"
@@ -182,7 +339,11 @@ export function GcpSetupGuide({
               disabled={isScanning}
               className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
             >
-              {isScanning ? 'Scanning...' : 'Try Scanning Anyway'}
+              {isScanning
+                ? 'Scanning...'
+                : hasBlockingFailures
+                  ? 'Try Scanning Anyway'
+                  : 'Run Scan'}
             </button>
           </div>
         )}
@@ -191,12 +352,12 @@ export function GcpSetupGuide({
       {/* Auto-fix roles info */}
       <details className="rounded-xl border">
         <summary className="cursor-pointer px-5 py-3 text-sm font-medium hover:bg-muted/30 transition-colors">
-          Optional: IAM roles for auto-fix
+          Optional: Write roles for one-click remediation
         </summary>
         <div className="px-5 pb-4 space-y-2">
           <p className="text-xs text-muted-foreground">
-            Auto-fix requires additional IAM roles. These are only needed when applying fixes — scanning works without them.
-            We&apos;ll show the exact <code className="font-mono">gcloud</code> command when a fix needs a missing permission.
+            Scanning only needs read access. These write roles are only for applying one-click fixes from the findings list.
+            If a fix needs more access, we show the exact <code className="font-mono">gcloud</code> command at fix time.
           </p>
           <div className="space-y-1.5">
             {AUTO_FIX_ROLES.map((r) => (
@@ -215,11 +376,13 @@ export function GcpSetupGuide({
 function StepRow({
   done,
   failed,
+  optional,
   label,
   error,
 }: {
   done?: boolean;
   failed?: boolean;
+  optional?: boolean;
   label: string;
   error?: string;
 }) {
@@ -229,20 +392,32 @@ function StepRow({
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full mt-0.5 ${
           done
             ? 'bg-primary/10'
-            : failed
+            : optional
+              ? 'bg-amber-100 dark:bg-amber-900/30'
+              : failed
               ? 'bg-red-100 dark:bg-red-900/30'
               : 'border border-muted-foreground/30'
         }`}
       >
         {done && <Check className="h-3 w-3 text-primary" />}
-        {failed && <X className="h-3 w-3 text-red-500" />}
+        {failed && <X className={`h-3 w-3 ${optional ? 'text-amber-600' : 'text-red-500'}`} />}
       </div>
       <div>
-        <p className={`text-sm ${done ? 'text-muted-foreground' : failed ? 'text-foreground' : 'font-medium'}`}>
+        <p
+          className={`text-sm ${
+            done
+              ? 'text-muted-foreground'
+              : optional
+                ? 'text-amber-800 dark:text-amber-300'
+                : failed
+                  ? 'text-foreground'
+                  : 'font-medium'
+          }`}
+        >
           {label}
         </p>
         {error && (
-          <p className="text-[11px] text-red-500 mt-0.5">{error}</p>
+          <p className={`mt-0.5 text-[11px] ${optional ? 'text-amber-700 dark:text-amber-400' : 'text-red-500'}`}>{error}</p>
         )}
       </div>
     </div>
