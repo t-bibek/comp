@@ -151,6 +151,59 @@ const GCP_API_TO_SERVICE: Record<string, string[]> = {
   'iamcredentials.googleapis.com': ['iam'],
 };
 
+type GcpSetupStepId =
+  | 'enable_security_command_center_api'
+  | 'enable_cloud_resource_manager_api'
+  | 'enable_service_usage_api'
+  | 'grant_findings_viewer_role';
+
+type GcpSetupStep = {
+  id: GcpSetupStepId;
+  name: string;
+  success: boolean;
+  error?: string;
+  actionUrl?: string;
+  actionText?: string;
+};
+
+const REQUIRED_GCP_API_STEPS: Array<{
+  id: GcpSetupStepId;
+  api: string;
+  name: string;
+  actionUrl: string;
+  actionText: string;
+}> = [
+  {
+    id: 'enable_security_command_center_api',
+    api: 'securitycenter.googleapis.com',
+    name: 'Enable Security Command Center API',
+    actionUrl:
+      'https://console.cloud.google.com/apis/library/securitycenter.googleapis.com',
+    actionText: 'Open API',
+  },
+  {
+    id: 'enable_cloud_resource_manager_api',
+    api: 'cloudresourcemanager.googleapis.com',
+    name: 'Enable Cloud Resource Manager API',
+    actionUrl:
+      'https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com',
+    actionText: 'Open API',
+  },
+  {
+    id: 'enable_service_usage_api',
+    api: 'serviceusage.googleapis.com',
+    name: 'Enable Service Usage API',
+    actionUrl:
+      'https://console.cloud.google.com/apis/library/serviceusage.googleapis.com',
+    actionText: 'Open API',
+  },
+];
+
+const FINDINGS_VIEWER_ACTION = {
+  actionUrl: 'https://console.cloud.google.com/iam-admin/iam',
+  actionText: 'Open IAM',
+};
+
 @Injectable()
 export class GCPSecurityService {
   private readonly logger = new Logger(GCPSecurityService.name);
@@ -166,10 +219,10 @@ export class GCPSecurityService {
     projectId: string;
   }): Promise<{
     email: string | null;
-    steps: Array<{ name: string; success: boolean; error?: string }>;
+    steps: GcpSetupStep[];
   }> {
     const { accessToken, organizationId, projectId } = params;
-    const steps: Array<{ name: string; success: boolean; error?: string }> = [];
+    const steps: GcpSetupStep[] = [];
 
     // Step 1: Get user email from OAuth token
     let email: string | null = null;
@@ -186,16 +239,10 @@ export class GCPSecurityService {
     }
 
     // Step 2: Enable required APIs
-    const requiredApis = [
-      'securitycenter.googleapis.com',
-      'cloudresourcemanager.googleapis.com',
-      'serviceusage.googleapis.com',
-    ];
-
-    for (const api of requiredApis) {
+    for (const stepDef of REQUIRED_GCP_API_STEPS) {
       try {
         const resp = await fetch(
-          `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/${api}:enable`,
+          `https://serviceusage.googleapis.com/v1/projects/${projectId}/services/${stepDef.api}:enable`,
           {
             method: 'POST',
             headers: {
@@ -206,16 +253,35 @@ export class GCPSecurityService {
           },
         );
         if (resp.ok || resp.status === 409) {
-          steps.push({ name: `Enable ${api.split('.')[0]}`, success: true });
+          steps.push({
+            id: stepDef.id,
+            name: stepDef.name,
+            success: true,
+            actionUrl: stepDef.actionUrl,
+            actionText: stepDef.actionText,
+          });
         } else {
           const err = await resp.text();
-          steps.push({ name: `Enable ${api.split('.')[0]}`, success: false, error: this.extractGcpError(err) });
+          steps.push({
+            id: stepDef.id,
+            name: stepDef.name,
+            success: false,
+            error: this.getEnableApiErrorMessage(stepDef.api, err),
+            actionUrl: stepDef.actionUrl,
+            actionText: stepDef.actionText,
+          });
         }
       } catch (err) {
         steps.push({
-          name: `Enable ${api.split('.')[0]}`,
+          id: stepDef.id,
+          name: stepDef.name,
           success: false,
-          error: err instanceof Error ? err.message : String(err),
+          error:
+            err instanceof Error
+              ? this.getEnableApiErrorMessage(stepDef.api, err.message)
+              : this.getEnableApiErrorMessage(stepDef.api, String(err)),
+          actionUrl: stepDef.actionUrl,
+          actionText: stepDef.actionText,
         });
       }
     }
@@ -238,7 +304,13 @@ export class GCPSecurityService {
 
         if (!getPolicyResp.ok) {
           const err = await getPolicyResp.text();
-          steps.push({ name: 'Grant Findings Viewer role', success: false, error: this.extractGcpError(err) });
+          steps.push({
+            id: 'grant_findings_viewer_role',
+            name: 'Grant Findings Viewer role',
+            success: false,
+            error: this.getFindingsViewerErrorMessage(err),
+            ...FINDINGS_VIEWER_ACTION,
+          });
         } else {
           const policy = await getPolicyResp.json() as {
             version?: number;
@@ -253,7 +325,12 @@ export class GCPSecurityService {
           // Check if binding already exists
           const existing = bindings.find((b) => b.role === role);
           if (existing && existing.members.includes(member)) {
-            steps.push({ name: 'Grant Findings Viewer role', success: true });
+            steps.push({
+              id: 'grant_findings_viewer_role',
+              name: 'Grant Findings Viewer role',
+              success: true,
+              ...FINDINGS_VIEWER_ACTION,
+            });
           } else {
             // Add the binding
             if (existing) {
@@ -278,24 +355,53 @@ export class GCPSecurityService {
             );
 
             if (setPolicyResp.ok) {
-              steps.push({ name: 'Grant Findings Viewer role', success: true });
+              steps.push({
+                id: 'grant_findings_viewer_role',
+                name: 'Grant Findings Viewer role',
+                success: true,
+                ...FINDINGS_VIEWER_ACTION,
+              });
             } else {
               const err = await setPolicyResp.text();
-              steps.push({ name: 'Grant Findings Viewer role', success: false, error: this.extractGcpError(err) });
+              steps.push({
+                id: 'grant_findings_viewer_role',
+                name: 'Grant Findings Viewer role',
+                success: false,
+                error: this.getFindingsViewerErrorMessage(err),
+                ...FINDINGS_VIEWER_ACTION,
+              });
             }
           }
         }
       } catch (err) {
         steps.push({
+          id: 'grant_findings_viewer_role',
           name: 'Grant Findings Viewer role',
           success: false,
-          error: err instanceof Error ? err.message : String(err),
+          error:
+            err instanceof Error
+              ? this.getFindingsViewerErrorMessage(err.message)
+              : this.getFindingsViewerErrorMessage(String(err)),
+          ...FINDINGS_VIEWER_ACTION,
         });
       }
     } else if (!email) {
-      steps.push({ name: 'Grant Findings Viewer role', success: false, error: 'Could not detect your email address' });
+      steps.push({
+        id: 'grant_findings_viewer_role',
+        name: 'Grant Findings Viewer role',
+        success: false,
+        error:
+          'Could not identify your Google account email. Reconnect GCP and approve profile/email access.',
+        ...FINDINGS_VIEWER_ACTION,
+      });
     } else {
-      steps.push({ name: 'Grant Findings Viewer role', success: false, error: 'Organization ID not detected yet' });
+      steps.push({
+        id: 'grant_findings_viewer_role',
+        name: 'Grant Findings Viewer role',
+        success: false,
+        error: 'Organization ID not detected yet.',
+        ...FINDINGS_VIEWER_ACTION,
+      });
     }
 
     this.logger.log(`GCP auto-setup: ${steps.filter((s) => s.success).length}/${steps.length} steps succeeded`);
@@ -303,12 +409,55 @@ export class GCPSecurityService {
   }
 
   private extractGcpError(raw: string): string {
+    let message = raw;
     try {
       const parsed = JSON.parse(raw) as { error?: { message?: string } };
-      return parsed.error?.message ?? raw.slice(0, 200);
+      message = parsed.error?.message ?? raw;
     } catch {
-      return raw.slice(0, 200);
+      message = raw;
     }
+    return message
+      .replace(/\s*Help Token:\s*[\w-]+/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 240);
+  }
+
+  private getEnableApiErrorMessage(apiName: string, raw: string): string {
+    const message = this.extractGcpError(raw);
+
+    if (
+      /permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(
+        message,
+      )
+    ) {
+      return `Your account cannot enable ${apiName}. Ask a project owner/editor to enable it.`;
+    }
+
+    return message || `Failed to enable ${apiName}.`;
+  }
+
+  private getFindingsViewerErrorMessage(raw: string): string {
+    const message = this.extractGcpError(raw);
+
+    if (/getIamPolicy|resourcemanager\.organizations\.getIamPolicy/i.test(message)) {
+      return 'Your account cannot read organization IAM policy. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
+    }
+
+    if (
+      /setIamPolicy|resourcemanager\.organizations\.setIamPolicy/i.test(message)
+    ) {
+      return 'Your account cannot grant org IAM roles. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
+    }
+
+    if (/permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(message)) {
+      return 'Your account does not have organization IAM permissions required for auto-setup. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
+    }
+
+    return (
+      message ||
+      'Unable to grant Findings Viewer role automatically. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.'
+    );
   }
 
   /**

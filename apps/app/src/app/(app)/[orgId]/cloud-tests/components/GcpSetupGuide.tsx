@@ -13,31 +13,13 @@ interface GcpSetupGuideProps {
 }
 
 interface SetupStep {
+  id: string;
   name: string;
   success: boolean;
   error?: string;
+  actionUrl?: string;
+  actionText?: string;
 }
-
-const MANUAL_STEPS = [
-  {
-    title: 'Enable Security Command Center',
-    description: 'SCC Standard tier (free) must be activated on your GCP organization.',
-    link: 'https://console.cloud.google.com/security/command-center',
-    linkText: 'Open SCC Console',
-  },
-  {
-    title: 'Grant Findings Viewer role',
-    description: 'Your account needs the Security Center Findings Viewer role at the organization level.',
-    link: 'https://console.cloud.google.com/iam-admin/iam',
-    linkText: 'Open IAM',
-  },
-  {
-    title: 'Enable required APIs',
-    description: 'Cloud Resource Manager and Service Usage APIs must be enabled.',
-    link: 'https://console.cloud.google.com/apis/library',
-    linkText: 'API Library',
-  },
-];
 
 const AUTO_FIX_ROLES = [
   { role: 'Storage Admin', scope: 'Cloud Storage fixes' },
@@ -103,6 +85,10 @@ export function GcpSetupGuide({
   };
 
   const allStepsSucceeded = setupResult?.steps.every((s) => s.success);
+  const failedSteps = setupResult?.steps.filter((s) => !s.success) ?? [];
+  const failedActionableSteps = failedSteps.filter(
+    (step) => step.actionUrl && step.actionText,
+  );
 
   return (
     <div className="space-y-4">
@@ -110,7 +96,7 @@ export function GcpSetupGuide({
         <div>
           <h3 className="text-sm font-semibold">Get started with GCP scanning</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            We need to enable a few things in your GCP account. You can do it automatically or follow the manual steps.
+            OAuth signs in your account, but GCP still requires org-level IAM/API access for Security Command Center. We&apos;ll try to set it up automatically first.
           </p>
         </div>
 
@@ -137,9 +123,9 @@ export function GcpSetupGuide({
             {setupResult.email && (
               <StepRow done label={`Account: ${setupResult.email}`} />
             )}
-            {setupResult.steps.map((step, i) => (
+            {setupResult.steps.map((step) => (
               <StepRow
-                key={i}
+                key={step.id}
                 done={step.success}
                 failed={!step.success}
                 label={step.name}
@@ -156,37 +142,49 @@ export function GcpSetupGuide({
               Some steps need manual setup:
             </p>
             <div className="space-y-1.5">
-              {MANUAL_STEPS.map((step, i) => {
-                const result = setupResult.steps.find((s) => s.name.toLowerCase().includes(step.title.toLowerCase().split(' ')[1] ?? ''));
-                if (result?.success) return null;
-                return (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-xs text-amber-700 dark:text-amber-400">{step.title}</span>
+              {failedActionableSteps.length > 0 ? (
+                failedActionableSteps.map((step) => (
+                  <div key={step.id} className="flex items-center justify-between">
+                    <span className="text-xs text-amber-700 dark:text-amber-400">{step.name}</span>
                     <a
-                      href={step.link}
+                      href={step.actionUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
                     >
-                      {step.linkText} <ExternalLink className="h-2.5 w-2.5" />
+                      {step.actionText} <ExternalLink className="h-2.5 w-2.5" />
                     </a>
                   </div>
-                );
-              })}
+                ))
+              ) : (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Fix the failed permissions in your GCP console, then retry setup.
+                </p>
+              )}
             </div>
           </div>
         )}
 
         {/* Run scan button — only shown if setup partially failed */}
         {setupResult && !allStepsSucceeded && (
-          <button
-            type="button"
-            onClick={onRunScan}
-            disabled={isScanning}
-            className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-          >
-            {isScanning ? 'Scanning...' : 'Try Scanning Anyway'}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={handleAutoSetup}
+              disabled={isSettingUp}
+              className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              {isSettingUp ? 'Retrying setup...' : 'Retry setup'}
+            </button>
+            <button
+              type="button"
+              onClick={onRunScan}
+              disabled={isScanning}
+              className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+            >
+              {isScanning ? 'Scanning...' : 'Try Scanning Anyway'}
+            </button>
+          </div>
         )}
       </div>
 

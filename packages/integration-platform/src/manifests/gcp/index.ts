@@ -16,7 +16,12 @@ export const gcpManifest: IntegrationManifest = {
     config: {
       authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
       tokenUrl: 'https://oauth2.googleapis.com/token',
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+      scopes: [
+        'https://www.googleapis.com/auth/cloud-platform',
+        'openid',
+        'email',
+        'profile',
+      ],
       pkce: false,
       clientAuthMethod: 'body',
       supportsRefreshToken: true,
@@ -40,6 +45,7 @@ export const gcpManifest: IntegrationManifest = {
 ### About the Required Permissions
 
 **OAuth Scope:** This integration requires the \`cloud-platform\` scope to access Security Command Center findings.
+We also request basic profile/email scopes so setup can identify which account to grant org IAM role to.
 
 **Important:** While Google's consent screen will say "See, edit, configure and delete your Google Cloud data", this is the **only scope available** for Security Command Center API. Google does not offer a read-only alternative.
 
