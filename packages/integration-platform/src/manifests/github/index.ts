@@ -32,7 +32,7 @@ export const manifest: IntegrationManifest = {
     config: {
       authorizeUrl: 'https://github.com/login/oauth/authorize',
       tokenUrl: 'https://github.com/login/oauth/access_token',
-      scopes: ['admin:org', 'repo', 'read:user'],
+      scopes: ['read:org', 'repo', 'read:user'],
       pkce: false,
       clientAuthMethod: 'body',
       revoke: {
