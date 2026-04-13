@@ -25,7 +25,11 @@ import { CloudSecurityQueryService } from './cloud-security-query.service';
 import { CloudSecurityLegacyService } from './cloud-security-legacy.service';
 import { logCloudSecurityActivity } from './cloud-security-audit';
 import { CloudSecurityActivityService } from './cloud-security-activity.service';
-import { GCPSecurityService } from './providers/gcp-security.service';
+import {
+  GCPSecurityService,
+  type GcpSetupStep,
+  type GcpSetupStepId,
+} from './providers/gcp-security.service';
 import { AzureSecurityService } from './providers/azure-security.service';
 
 @Controller({ path: 'cloud-security', version: '1' })
@@ -226,53 +230,117 @@ export class CloudSecurityController {
     @OrganizationId() organizationId: string,
   ) {
     try {
-      const connection = await this.cloudSecurityService.getConnectionForDetect(
-        connectionId,
-        organizationId,
-      );
-
-      const credentials = connection.credentials as Record<string, unknown>;
-      const accessToken = credentials?.access_token as string;
-      if (!accessToken) {
-        throw new Error('No access token found. Reconnect the GCP integration.');
-      }
-
-      const variables = (connection.variables ?? {}) as Record<string, unknown>;
-      const gcpOrgId = variables.organization_id as string | undefined;
-
-      // Auto-detect org if not set
-      let orgId = gcpOrgId;
-      if (!orgId) {
-        const orgs = await this.gcpSecurityService.detectOrganizations(accessToken);
-        if (orgs.length > 0) {
-          orgId = orgs[0].id;
-          await this.cloudSecurityService.saveConnectionVariable(connectionId, 'organization_id', orgId, organizationId);
-        }
-      }
-
-      // Auto-detect project if not known
-      const projects = await this.gcpSecurityService.detectProjects(accessToken);
-      const projectId = projects[0]?.id;
-      if (!projectId) {
-        throw new Error('No GCP projects found. Ensure your account has access to at least one project.');
-      }
+      const context = await this.resolveGcpSetupContext(connectionId, organizationId);
 
       const result = await this.gcpSecurityService.autoSetup({
-        accessToken,
-        organizationId: orgId ?? '',
-        projectId,
+        accessToken: context.accessToken,
+        organizationId: context.organizationId ?? '',
+        projectId: context.projectId,
       });
 
       return {
         ...result,
-        organizationId: orgId,
-        projectId,
+        steps: this.withGcpResolveActions(result.steps, connectionId),
+        organizationId: context.organizationId,
+        projectId: context.projectId,
       };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'GCP setup failed';
       throw new HttpException(message, HttpStatus.BAD_REQUEST);
     }
+  }
+
+  @Post('setup-gcp/:connectionId/resolve-step')
+  @UseGuards(HybridAuthGuard, PermissionGuard)
+  @RequirePermission('integration', 'update')
+  async resolveGcpSetupStep(
+    @Param('connectionId') connectionId: string,
+    @Body() body: { stepId: GcpSetupStepId },
+    @OrganizationId() organizationId: string,
+  ) {
+    try {
+      if (!body?.stepId) {
+        throw new Error('stepId is required');
+      }
+
+      const context = await this.resolveGcpSetupContext(connectionId, organizationId);
+      const result = await this.gcpSecurityService.resolveSetupStep({
+        stepId: body.stepId,
+        accessToken: context.accessToken,
+        organizationId: context.organizationId ?? '',
+        projectId: context.projectId,
+      });
+
+      return {
+        email: result.email,
+        step: this.withGcpResolveActions([result.step], connectionId)[0],
+        organizationId: context.organizationId,
+        projectId: context.projectId,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to resolve setup step';
+      throw new HttpException(message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  private withGcpResolveActions(steps: GcpSetupStep[], connectionId: string): GcpSetupStep[] {
+    return steps.map((step) => {
+      if (step.success) return step;
+      return {
+        ...step,
+        resolveAction: {
+          label: 'Resolve this',
+          method: 'POST',
+          endpoint: `/v1/cloud-security/setup-gcp/${connectionId}/resolve-step`,
+          body: { stepId: step.id },
+        },
+      };
+    });
+  }
+
+  private async resolveGcpSetupContext(connectionId: string, organizationId: string) {
+    const connection = await this.cloudSecurityService.getConnectionForDetect(
+      connectionId,
+      organizationId,
+    );
+
+    const credentials = connection.credentials as Record<string, unknown>;
+    const accessToken = credentials?.access_token as string;
+    if (!accessToken) {
+      throw new Error('No access token found. Reconnect the GCP integration.');
+    }
+
+    const variables = (connection.variables ?? {}) as Record<string, unknown>;
+    let gcpOrgId = variables.organization_id as string | undefined;
+
+    if (!gcpOrgId) {
+      const orgs = await this.gcpSecurityService.detectOrganizations(accessToken);
+      if (orgs.length > 0) {
+        gcpOrgId = orgs[0].id;
+        await this.cloudSecurityService.saveConnectionVariable(
+          connectionId,
+          'organization_id',
+          gcpOrgId,
+          organizationId,
+        );
+      }
+    }
+
+    const projects = await this.gcpSecurityService.detectProjects(accessToken);
+    const projectId = projects[0]?.id;
+    if (!projectId) {
+      throw new Error(
+        'No GCP projects found. Ensure your account has access to at least one project.',
+      );
+    }
+
+    return {
+      accessToken,
+      organizationId: gcpOrgId,
+      projectId,
+    };
   }
 
   @Post('setup-azure/:connectionId')
