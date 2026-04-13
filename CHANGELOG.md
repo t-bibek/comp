@@ -1,3 +1,11 @@
+## [3.21.1](https://github.com/trycompai/comp/compare/v3.21.0...v3.21.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **frameworks:** add PCI DSS Level 1 badge mapping ([a5a7f80](https://github.com/trycompai/comp/commit/a5a7f80db5fa9eea161e81ec0f30ca9fdcd9cd11))
+* **frameworks:** support PCI DSS badge name variants ([24fe953](https://github.com/trycompai/comp/commit/24fe953974779f7a985a69aa731df094754dea4a))
+
 # [3.21.0](https://github.com/trycompai/comp/compare/v3.20.2...v3.21.0) (2026-04-10)
 
 
