@@ -440,16 +440,18 @@ export class GCPSecurityService {
   private getFindingsViewerErrorMessage(raw: string): string {
     const message = this.extractGcpError(raw);
 
+    if (/getIamPolicy|resourcemanager\.organizations\.getIamPolicy/i.test(message)) {
+      return 'Your account cannot read organization IAM policy. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
+    }
+
     if (
-      /setIamPolicy|resourcemanager\.organizations\.setIamPolicy|permission denied|forbidden|PERMISSION_DENIED/i.test(
-        message,
-      )
+      /setIamPolicy|resourcemanager\.organizations\.setIamPolicy/i.test(message)
     ) {
       return 'Your account cannot grant org IAM roles. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
     }
 
-    if (/getIamPolicy|resourcemanager\.organizations\.getIamPolicy/i.test(message)) {
-      return 'Your account cannot read organization IAM policy. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
+    if (/permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(message)) {
+      return 'Your account does not have organization IAM permissions required for auto-setup. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
     }
 
     return (
