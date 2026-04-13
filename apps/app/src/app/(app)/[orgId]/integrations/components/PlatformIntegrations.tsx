@@ -3,6 +3,7 @@
 import { ConnectIntegrationDialog } from '@/components/integrations/ConnectIntegrationDialog';
 import { ManageIntegrationDialog } from '@/components/integrations/ManageIntegrationDialog';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useVendors } from '@/hooks/use-vendors';
 import {
   ConnectionListItem,
   IntegrationProvider,
@@ -66,6 +67,16 @@ const providerNeedsConfiguration = (
   return requiredVariables.some((varId) => !currentVars[varId]);
 };
 
+const normalizeIntegrationName = (value: string): string => {
+  return value
+    .toLowerCase()
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9 ]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 interface RelevantTask {
   taskId: string; // Actual task ID for navigation
   taskTemplateId: string;
@@ -96,6 +107,7 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
   const { hasPermission } = usePermissions();
   const canCreate = hasPermission('integration', 'create');
   const { startOAuth } = useIntegrationMutations();
+  const { data: vendorsResponse } = useVendors();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<IntegrationCategory | 'All'>('All');
@@ -183,7 +195,20 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
     [connections],
   );
 
-  // Merge and sort: platform first (warnings, then connected, then disconnected), then custom
+  const vendorNames = useMemo(() => {
+    const vendors = vendorsResponse?.data?.data;
+    if (!Array.isArray(vendors)) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      vendors
+        .map((vendor) => normalizeIntegrationName(vendor.name))
+        .filter((name) => name.length > 0),
+    );
+  }, [vendorsResponse]);
+
+  // Merge/sort integrations, then prioritize entries matching vendors in the org's vendor list.
   const unifiedIntegrations = useMemo<UnifiedIntegration[]>(() => {
     const platformIntegrations: UnifiedIntegration[] = (providers?.filter((p) => p.isActive) || [])
       .map((provider) => ({
@@ -214,8 +239,33 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
       integration,
     }));
 
-    return [...platformIntegrations, ...customIntegrations];
-  }, [providers, connectionsByProvider]);
+    const allIntegrations = [...platformIntegrations, ...customIntegrations];
+    if (vendorNames.size === 0) {
+      return allIntegrations;
+    }
+
+    const vendorListedIntegrations: UnifiedIntegration[] = [];
+    const otherIntegrations: UnifiedIntegration[] = [];
+
+    allIntegrations.forEach((integration) => {
+      const candidateNames =
+        integration.type === 'platform'
+          ? [integration.provider.name, integration.provider.id]
+          : [integration.integration.name, integration.integration.id];
+
+      const isVendorListed = candidateNames
+        .map((candidateName) => normalizeIntegrationName(candidateName))
+        .some((normalizedCandidateName) => vendorNames.has(normalizedCandidateName));
+
+      if (isVendorListed) {
+        vendorListedIntegrations.push(integration);
+      } else {
+        otherIntegrations.push(integration);
+      }
+    });
+
+    return [...vendorListedIntegrations, ...otherIntegrations];
+  }, [providers, connectionsByProvider, vendorNames]);
 
   // Get all unique categories
   const allCategories = useMemo(() => {
