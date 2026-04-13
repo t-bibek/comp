@@ -288,7 +288,7 @@ export function TestsLayout({ initialFindings, initialProviders, orgId }: TestsL
             Reconnect required for {reconnectRequiredCount} cloud connection{reconnectRequiredCount === 1 ? '' : 's'}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Connections created on or before {CLOUD_RECONNECT_CUTOFF_LABEL} should be re-added to keep scans and remediation fully reliable.
+            Connections created before {CLOUD_RECONNECT_CUTOFF_LABEL} should be re-added to keep scans and remediation fully reliable.
           </p>
         </div>
       )}

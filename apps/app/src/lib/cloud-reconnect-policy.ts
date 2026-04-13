@@ -1,10 +1,10 @@
 const CLOUD_RECONNECT_PROVIDER_IDS = new Set(['aws', 'gcp', 'azure']);
 
 /**
- * Connections created on or before this UTC timestamp require re-connection.
+ * Connections created before this UTC timestamp require re-connection.
  * This rollout date is fixed intentionally so the behavior is stable over time.
  */
-export const CLOUD_RECONNECT_CUTOFF_ISO_UTC = '2026-04-13T23:59:59.999Z';
+export const CLOUD_RECONNECT_CUTOFF_ISO_UTC = '2026-04-13T00:00:00.000Z';
 export const CLOUD_RECONNECT_CUTOFF_LABEL = 'April 13, 2026';
 
 const CLOUD_RECONNECT_CUTOFF_MS = new Date(CLOUD_RECONNECT_CUTOFF_ISO_UTC).getTime();
@@ -29,6 +29,5 @@ export function requiresCloudReconnect(candidate: ReconnectCandidate): boolean {
   const createdAt = new Date(candidate.createdAt);
   if (Number.isNaN(createdAt.getTime())) return false;
 
-  return createdAt.getTime() <= CLOUD_RECONNECT_CUTOFF_MS;
+  return createdAt.getTime() < CLOUD_RECONNECT_CUTOFF_MS;
 }
-

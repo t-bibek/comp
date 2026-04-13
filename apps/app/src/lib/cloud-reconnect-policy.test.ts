@@ -5,14 +5,24 @@ import {
 } from './cloud-reconnect-policy';
 
 describe('requiresCloudReconnect', () => {
-  it('returns true for cloud connections created on the cutoff date', () => {
+  it('returns true for cloud connections created before the cutoff date', () => {
+    expect(
+      requiresCloudReconnect({
+        providerId: 'aws',
+        createdAt: '2026-04-12T23:59:59.999Z',
+        status: 'active',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false for cloud connections created exactly at the cutoff timestamp', () => {
     expect(
       requiresCloudReconnect({
         providerId: 'aws',
         createdAt: CLOUD_RECONNECT_CUTOFF_ISO_UTC,
         status: 'active',
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('returns false for cloud connections created after the cutoff date', () => {
@@ -45,4 +55,3 @@ describe('requiresCloudReconnect', () => {
     ).toBe(false);
   });
 });
-

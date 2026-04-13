@@ -199,7 +199,7 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
             <div>
               <p className="text-sm font-medium">Reconnect this account</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                This connection was created on or before {CLOUD_RECONNECT_CUTOFF_LABEL}. Reconnect it to keep scans and remediation fully reliable.
+                This connection was created before {CLOUD_RECONNECT_CUTOFF_LABEL}. Reconnect it to keep scans and remediation fully reliable.
               </p>
             </div>
             <Button size="sm" variant="outline" onClick={() => void handleConnect()}>
