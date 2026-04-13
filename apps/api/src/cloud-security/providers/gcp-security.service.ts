@@ -438,6 +438,7 @@ export class GCPSecurityService {
       const policy = (await getPolicyResp.json()) as {
         version?: number;
         bindings?: Array<{ role: string; members: string[] }>;
+        etag?: string;
       };
 
       const role = 'roles/securitycenter.findingsViewer';
@@ -469,7 +470,11 @@ export class GCPSecurityService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            policy: { ...policy, bindings, version: policy.version ?? 3 },
+            policy: {
+              version: policy.version ?? 3,
+              bindings,
+              ...(policy.etag ? { etag: policy.etag } : {}),
+            },
             updateMask: 'bindings',
           }),
         },

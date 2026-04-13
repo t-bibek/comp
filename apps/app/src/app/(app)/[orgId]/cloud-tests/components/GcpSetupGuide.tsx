@@ -159,10 +159,14 @@ export function GcpSetupGuide({
   };
 
   const handleCopyCommand = async (copyKey: string, command: string) => {
-    await navigator.clipboard.writeText(command);
-    setCopiedCommandKey(copyKey);
-    setTimeout(() => setCopiedCommandKey(null), 1600);
-    toast.success('Command copied');
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopiedCommandKey(copyKey);
+      setTimeout(() => setCopiedCommandKey(null), 1600);
+      toast.success('Command copied');
+    } catch {
+      toast.error('Failed to copy command');
+    }
   };
 
   const allStepsSucceeded = setupResult?.steps.every((s) => s.success);
