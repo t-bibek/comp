@@ -89,8 +89,15 @@ export class ServicesController {
           } else if (detectedServices) {
             enabled = detectedServices.includes(s.id) && !disabledServices.has(s.id);
           } else {
-            // Default: use enabledByDefault from manifest, otherwise enabled
-            enabled = (s.enabledByDefault ?? true) && !disabledServices.has(s.id);
+            // No detection data yet:
+            // - GCP should default to enabled (scan already runs across SCC categories by default),
+            //   so UI doesn't misleadingly show everything as OFF immediately after OAuth connect.
+            // - Others keep manifest defaults.
+            if (providerSlug === 'gcp') {
+              enabled = !disabledServices.has(s.id);
+            } else {
+              enabled = (s.enabledByDefault ?? true) && !disabledServices.has(s.id);
+            }
           }
 
           return {

@@ -208,6 +208,8 @@ export function CloudTestsSection({
   const allFindings = Array.isArray(findingsResponse.data?.data?.data)
     ? findingsResponse.data.data.data
     : [];
+  const hasLoadedFindings =
+    findingsResponse.data !== undefined || findingsResponse.error !== undefined;
 
   // Load remediation capabilities for the selected connection
   useEffect(() => {
@@ -802,7 +804,7 @@ export function CloudTestsSection({
       )}
 
       {/* Empty state — never scanned */}
-      {findings.length === 0 && !findingsResponse.isValidating && !lastRunAt && !scanCompleted && !scanError && (
+      {hasLoadedFindings && findings.length === 0 && !lastRunAt && !scanCompleted && !scanError && (
         providerSlug === 'gcp' ? (
           <GcpSetupGuide
             connectionId={connectionId}
