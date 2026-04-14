@@ -138,6 +138,7 @@ const GCP_API_TO_SERVICE: Record<string, string[]> = {
   'storage.googleapis.com': ['cloud-storage'],
   'storage-component.googleapis.com': ['cloud-storage'],
   'compute.googleapis.com': ['compute-engine', 'vpc-network'],
+  'securitycenter.googleapis.com': ['security-command-center'],
   'sqladmin.googleapis.com': ['cloud-sql'],
   'container.googleapis.com': ['gke'],
   'cloudkms.googleapis.com': ['cloud-kms'],
@@ -803,6 +804,7 @@ export class GCPSecurityService {
   async scanSecurityFindings(
     credentials: Record<string, unknown>,
     variables: Record<string, unknown>,
+    enabledServices?: string[],
   ): Promise<SecurityFinding[]> {
     const accessToken = credentials.access_token as string;
     const organizationId = variables.organization_id as string;
@@ -820,6 +822,7 @@ export class GCPSecurityService {
     this.logger.log(`Scanning GCP SCC for org ${organizationId}`);
 
     const allFindings: SecurityFinding[] = [];
+    const enabledServiceSet = enabledServices ? new Set(enabledServices) : null;
     let pageToken: string | undefined;
 
     do {
@@ -828,6 +831,9 @@ export class GCPSecurityService {
       for (const result of response.findings) {
         const f = result.finding;
         const serviceId = CATEGORY_TO_SERVICE[f.category] ?? 'security-command-center';
+        if (enabledServiceSet && !enabledServiceSet.has(serviceId)) {
+          continue;
+        }
         const findingKey = `gcp-${serviceId}-${f.category.toLowerCase().replace(/_/g, '-')}`;
 
         // Build remediation text from SCC's nextSteps + our AI guidance hint
