@@ -355,9 +355,11 @@ export class GCPSecurityService {
 
       const rawError = await resp.text();
       const message = this.getEnableApiErrorMessage(stepDef.api, rawError);
-      const isPermissionError = /permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(
-        message,
-      );
+      const isPermissionError =
+        resp.status === 403 ||
+        /permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(
+          rawError,
+        );
 
       if (isPermissionError) {
         const alreadyEnabled = await this.isApiAlreadyEnabled(
