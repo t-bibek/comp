@@ -305,7 +305,25 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
       }
     });
 
-    return [...vendorListedIntegrations, ...otherIntegrations];
+    // Connected integrations always appear first, then vendor-listed, then others
+    const ESTABLISHED_STATUSES = new Set(['active', 'pending', 'error', 'paused']);
+    const sortByConnection = (list: UnifiedIntegration[]) =>
+      list.sort((a, b) => {
+        const aConnected =
+          a.type === 'platform' &&
+          a.connection?.status &&
+          ESTABLISHED_STATUSES.has(a.connection.status)
+            ? 0
+            : 1;
+        const bConnected =
+          b.type === 'platform' &&
+          b.connection?.status &&
+          ESTABLISHED_STATUSES.has(b.connection.status)
+            ? 0
+            : 1;
+        return aConnected - bConnected;
+      });
+    return sortByConnection([...vendorListedIntegrations, ...otherIntegrations]);
   }, [providers, connectionsByProvider, vendorNames]);
 
   // Get all unique categories
@@ -687,12 +705,23 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
                                   </Badge>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom" className="max-w-xs">
-                                  <p className="text-xs">
-                                    {provider.mappedTasks
-                                      .slice(3)
-                                      .map((t) => t.name)
-                                      .join(', ')}
-                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {provider.mappedTasks.slice(3).map((t) => {
+                                      const tid = templateToTaskMap.get(t.id);
+                                      return tid ? (
+                                        <Link
+                                          key={t.id}
+                                          href={`/${orgId}/tasks/${tid}`}
+                                          className="text-xs text-primary hover:underline"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {t.name}
+                                        </Link>
+                                      ) : (
+                                        <span key={t.id} className="text-xs">{t.name}</span>
+                                      );
+                                    })}
+                                  </div>
                                 </TooltipContent>
                               </Tooltip>
                               </TooltipProvider>
