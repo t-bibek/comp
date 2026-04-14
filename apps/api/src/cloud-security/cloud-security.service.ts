@@ -162,11 +162,13 @@ export class CloudSecurityService {
     // Get variables for the scan
     const variables = (connection.variables as Record<string, unknown>) || {};
 
-    // Security baseline: always scanned regardless of toggles.
-    // Every AWS account should have these configured.
-    const BASELINE_SERVICES = [
-      'cloudtrail', 'config', 'guardduty', 'iam-analyzer', 'cloudwatch', 'kms',
-    ];
+    // Provider baselines are always scanned regardless of toggles.
+    const BASELINE_SERVICES_BY_PROVIDER: Record<string, string[]> = {
+      aws: ['cloudtrail', 'config', 'guardduty', 'iam-analyzer', 'cloudwatch', 'kms'],
+      gcp: ['security-command-center'],
+      azure: [],
+    };
+    const baselineServices = BASELINE_SERVICES_BY_PROVIDER[providerSlug] ?? [];
 
     // Smart service filtering: auto-detect is additive, user can only exclude.
     // Scan = (detectedServices MINUS disabledServices) UNION baselineServices.
@@ -178,11 +180,11 @@ export class CloudSecurityService {
     if (Array.isArray(variables.enabledServices) && (variables.enabledServices as string[]).length > 0) {
       // Legacy format: explicit enabled list (backward compat) + baseline
       const userEnabled = (variables.enabledServices as string[]).filter((s) => !disabledServices.has(s));
-      enabledServices = [...new Set([...userEnabled, ...BASELINE_SERVICES])];
+      enabledServices = [...new Set([...userEnabled, ...baselineServices])];
     } else if (Array.isArray(variables.detectedServices) && (variables.detectedServices as string[]).length > 0) {
       // New smart format: detected minus disabled + baseline always included
       const filtered = (variables.detectedServices as string[]).filter((s) => !disabledServices.has(s));
-      enabledServices = [...new Set([...filtered, ...BASELINE_SERVICES])];
+      enabledServices = [...new Set([...filtered, ...baselineServices])];
     }
     // else: undefined = scan all adapters (no detection data at all)
 
@@ -219,6 +221,7 @@ export class CloudSecurityService {
           findings = await this.gcpService.scanSecurityFindings(
             credentials,
             variables,
+            enabledServices,
           );
           break;
         case 'aws':
@@ -358,19 +361,32 @@ export class CloudSecurityService {
       return [];
     }
 
-    // Save detected services and auto-enable them (remove from disabledServices)
-    const currentDisabled = Array.isArray(variables.disabledServices)
-      ? (variables.disabledServices as string[])
-      : [];
-    const updatedDisabled = currentDisabled.filter((s) => !detected.includes(s));
+    // Merge with existing detected services and only auto-enable genuinely NEW detections.
+    // This preserves explicit user toggles (both enabled and disabled).
+    const existingDetected = new Set<string>(
+      Array.isArray(variables.detectedServices)
+        ? (variables.detectedServices as string[])
+        : [],
+    );
+    const updatedDisabled = new Set<string>(
+      Array.isArray(variables.disabledServices)
+        ? (variables.disabledServices as string[])
+        : [],
+    );
+    for (const id of detected) {
+      if (!existingDetected.has(id)) {
+        updatedDisabled.delete(id);
+      }
+      existingDetected.add(id);
+    }
 
     await db.integrationConnection.update({
       where: { id: connectionId },
       data: {
         variables: {
           ...variables,
-          detectedServices: detected,
-          disabledServices: updatedDisabled,
+          detectedServices: [...existingDetected],
+          disabledServices: [...updatedDisabled],
         },
       },
     });
