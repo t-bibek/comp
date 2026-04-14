@@ -245,15 +245,31 @@ export class GCPSecurityService {
     const { accessToken, organizationId, projectId } = params;
     const steps: GcpSetupStep[] = [];
     const email = await this.detectEmail(accessToken);
+    const hasFindingsAccess = organizationId
+      ? await this.canReadFindings(accessToken, organizationId)
+      : false;
 
     for (const stepDef of REQUIRED_GCP_API_STEPS) {
-      steps.push(
-        await this.runEnableApiSetupStep({
-          stepDef,
-          accessToken,
-          projectId,
-        }),
-      );
+      let step = await this.runEnableApiSetupStep({
+        stepDef,
+        accessToken,
+        projectId,
+      });
+
+      // If findings are already readable, SCC API access is effectively working for this org.
+      if (
+        stepDef.id === 'enable_security_command_center_api' &&
+        !step.success &&
+        hasFindingsAccess
+      ) {
+        step = {
+          ...step,
+          success: true,
+          error: undefined,
+        };
+      }
+
+      steps.push(step);
     }
 
     steps.push(
@@ -261,6 +277,7 @@ export class GCPSecurityService {
         accessToken,
         organizationId,
         email,
+        hasFindingsAccess,
       }),
     );
 
@@ -279,6 +296,9 @@ export class GCPSecurityService {
   }): Promise<{ email: string | null; step: GcpSetupStep }> {
     const { stepId, accessToken, organizationId, projectId } = params;
     const email = params.email ?? (await this.detectEmail(accessToken));
+    const hasFindingsAccess = organizationId
+      ? await this.canReadFindings(accessToken, organizationId)
+      : false;
 
     if (stepId === 'grant_findings_viewer_role') {
       return {
@@ -287,6 +307,7 @@ export class GCPSecurityService {
           accessToken,
           organizationId,
           email,
+          hasFindingsAccess,
         }),
       };
     }
@@ -296,14 +317,25 @@ export class GCPSecurityService {
       throw new Error(`Unsupported GCP setup step: ${stepId}`);
     }
 
-    return {
-      email,
-      step: await this.runEnableApiSetupStep({
-        stepDef,
-        accessToken,
-        projectId,
-      }),
-    };
+    let step = await this.runEnableApiSetupStep({
+      stepDef,
+      accessToken,
+      projectId,
+    });
+
+    if (
+      stepDef.id === 'enable_security_command_center_api' &&
+      !step.success &&
+      hasFindingsAccess
+    ) {
+      step = {
+        ...step,
+        success: true,
+        error: undefined,
+      };
+    }
+
+    return { email, step };
   }
 
   private async detectEmail(accessToken: string): Promise<string | null> {
@@ -408,8 +440,20 @@ export class GCPSecurityService {
     accessToken: string;
     organizationId: string;
     email: string | null;
+    hasFindingsAccess?: boolean;
   }): Promise<GcpSetupStep> {
-    const { accessToken, organizationId, email } = params;
+    const { accessToken, organizationId, email, hasFindingsAccess } = params;
+
+    // If we can already read findings, required scan permission exists.
+    // Don't fail setup just because this user cannot grant IAM roles.
+    if (hasFindingsAccess) {
+      return {
+        id: 'grant_findings_viewer_role',
+        name: 'Grant Findings Viewer role',
+        success: true,
+        ...FINDINGS_VIEWER_ACTION,
+      };
+    }
 
     if (!email) {
       return {
@@ -595,6 +639,30 @@ export class GCPSecurityService {
 
       const data = (await resp.json()) as { state?: string };
       return data.state === 'ENABLED';
+    } catch {
+      return false;
+    }
+  }
+
+  private async canReadFindings(
+    accessToken: string,
+    organizationId: string,
+  ): Promise<boolean> {
+    try {
+      const url = new URL(
+        `https://securitycenter.googleapis.com/v2/organizations/${organizationId}/sources/-/findings`,
+      );
+      url.searchParams.set('pageSize', '1');
+      url.searchParams.set('filter', 'state="ACTIVE"');
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.ok;
     } catch {
       return false;
     }

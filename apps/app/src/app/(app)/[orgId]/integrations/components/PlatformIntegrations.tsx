@@ -94,6 +94,38 @@ interface PlatformIntegrationsProps {
   taskTemplates: Array<{ id: string; taskId: string; name: string; description: string }>;
 }
 
+const CONNECTION_STATUS_PRIORITY: Record<string, number> = {
+  active: 5,
+  pending: 4,
+  error: 3,
+  paused: 2,
+  disconnected: 1,
+};
+
+const getConnectionPriority = (connection: ConnectionListItem): number => {
+  return CONNECTION_STATUS_PRIORITY[connection.status] ?? 0;
+};
+
+const getConnectionCreatedAtMs = (connection: ConnectionListItem): number => {
+  const date = new Date(connection.createdAt);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const shouldReplaceProviderConnection = (
+  current: ConnectionListItem | undefined,
+  candidate: ConnectionListItem,
+): boolean => {
+  if (!current) return true;
+
+  const currentPriority = getConnectionPriority(current);
+  const candidatePriority = getConnectionPriority(candidate);
+  if (candidatePriority !== currentPriority) {
+    return candidatePriority > currentPriority;
+  }
+
+  return getConnectionCreatedAtMs(candidate) > getConnectionCreatedAtMs(current);
+};
+
 export function PlatformIntegrations({ className, taskTemplates }: PlatformIntegrationsProps) {
   const { orgId } = useParams<{ orgId: string }>();
   const router = useRouter();
@@ -190,10 +222,16 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
   };
 
   // Map connections by provider slug
-  const connectionsByProvider = useMemo(
-    () => new Map(connections?.map((c) => [c.providerSlug, c]) || []),
-    [connections],
-  );
+  const connectionsByProvider = useMemo(() => {
+    const map = new Map<string, ConnectionListItem>();
+    for (const connection of connections ?? []) {
+      const current = map.get(connection.providerSlug);
+      if (shouldReplaceProviderConnection(current, connection)) {
+        map.set(connection.providerSlug, connection);
+      }
+    }
+    return map;
+  }, [connections]);
 
   const vendorNames = useMemo(() => {
     const vendors = vendorsResponse?.data?.data;

@@ -17,9 +17,23 @@ vi.mock('@/hooks/use-permissions', () => ({
 }));
 
 // Mock integration platform hooks
-const mockStartOAuth = vi.fn();
-const mockUseIntegrationProviders = vi.fn();
-const mockUseIntegrationConnections = vi.fn();
+const {
+  mockStartOAuth,
+  mockUseIntegrationProviders,
+  mockUseIntegrationConnections,
+  mockUseVendors,
+} = vi.hoisted(() => ({
+  mockStartOAuth: vi.fn(),
+  mockUseIntegrationProviders: vi.fn(),
+  mockUseIntegrationConnections: vi.fn(),
+  mockUseVendors: vi.fn(),
+}));
+
+const { mockRouterPush, mockUseSearchParams } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+  mockUseSearchParams: vi.fn(() => new URLSearchParams()),
+}));
+
 vi.mock('@/hooks/use-integration-platform', () => ({
   useIntegrationProviders: mockUseIntegrationProviders,
   useIntegrationConnections: mockUseIntegrationConnections,
@@ -28,7 +42,6 @@ vi.mock('@/hooks/use-integration-platform', () => ({
   }),
 }));
 
-const mockUseVendors = vi.fn();
 vi.mock('@/hooks/use-vendors', () => ({
   useVendors: mockUseVendors,
 }));
@@ -78,8 +91,8 @@ vi.mock('next/link', () => ({
 // Mock next/navigation
 vi.mock('next/navigation', () => ({
   useParams: () => ({ orgId: 'org-1' }),
-  useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: mockRouterPush }),
+  useSearchParams: mockUseSearchParams,
 }));
 
 // Mock @trycompai/ui components
@@ -145,6 +158,7 @@ const defaultProps = {
 describe('PlatformIntegrations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSearchParams.mockReturnValue(new URLSearchParams() as any);
     mockUseIntegrationProviders.mockReturnValue({
       providers: [
         {
@@ -221,6 +235,53 @@ describe('PlatformIntegrations', () => {
       expect(screen.getByText('GitHub')).toBeInTheDocument();
       expect(screen.getByTestId('search-input')).toBeInTheDocument();
     });
+
+    it('treats provider as connected when an active connection exists alongside older disconnected rows', () => {
+      setMockPermissions(ADMIN_PERMISSIONS);
+      mockUseIntegrationProviders.mockReturnValue({
+        providers: [
+          {
+            id: 'gcp',
+            name: 'Google Cloud Platform',
+            description: 'Cloud security',
+            category: 'Cloud',
+            logoUrl: '/gcp.png',
+            authType: 'oauth2',
+            oauthConfigured: true,
+            isActive: true,
+            requiredVariables: [],
+            mappedTasks: [],
+            supportsMultipleConnections: true,
+          },
+        ],
+        isLoading: false,
+      });
+      mockUseIntegrationConnections.mockReturnValue({
+        connections: [
+          // Newest row returned first by API
+          {
+            id: 'conn-new-active',
+            providerSlug: 'gcp',
+            status: 'active',
+            variables: {},
+            createdAt: '2026-04-14T00:00:00.000Z',
+          },
+          {
+            id: 'conn-old-disconnected',
+            providerSlug: 'gcp',
+            status: 'disconnected',
+            variables: {},
+            createdAt: '2026-04-01T00:00:00.000Z',
+          },
+        ] as any,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<PlatformIntegrations {...defaultProps} />);
+
+      expect(screen.queryByText('Connect')).not.toBeInTheDocument();
+    });
   });
 
   describe('Employee sync import prompt', () => {
@@ -266,10 +327,7 @@ describe('PlatformIntegrations', () => {
       });
 
       // Mock useSearchParams to simulate OAuth callback
-      const { useSearchParams: mockUseSearchParams } = vi.mocked(
-        await import('next/navigation'),
-      );
-      vi.mocked(mockUseSearchParams).mockReturnValue(
+      mockUseSearchParams.mockReturnValue(
         new URLSearchParams('success=true&provider=google-workspace') as any,
       );
 
@@ -330,10 +388,7 @@ describe('PlatformIntegrations', () => {
         refresh: vi.fn(),
       });
 
-      const { useSearchParams: mockUseSearchParams } = vi.mocked(
-        await import('next/navigation'),
-      );
-      vi.mocked(mockUseSearchParams).mockReturnValue(
+      mockUseSearchParams.mockReturnValue(
         new URLSearchParams('success=true&provider=github') as any,
       );
 
