@@ -18,33 +18,19 @@ vi.mock('@/hooks/use-permissions', () => ({
 
 // Mock integration platform hooks
 const mockStartOAuth = vi.fn();
+const mockUseIntegrationProviders = vi.fn();
+const mockUseIntegrationConnections = vi.fn();
 vi.mock('@/hooks/use-integration-platform', () => ({
-  useIntegrationProviders: () => ({
-    providers: [
-      {
-        id: 'github',
-        name: 'GitHub',
-        description: 'Code hosting',
-        category: 'Development',
-        logoUrl: '/github.png',
-        authType: 'oauth2',
-        oauthConfigured: true,
-        isActive: true,
-        requiredVariables: [],
-        mappedTasks: [],
-        supportsMultipleConnections: false,
-      },
-    ],
-    isLoading: false,
-  }),
-  useIntegrationConnections: () => ({
-    connections: [],
-    isLoading: false,
-    refresh: vi.fn(),
-  }),
+  useIntegrationProviders: mockUseIntegrationProviders,
+  useIntegrationConnections: mockUseIntegrationConnections,
   useIntegrationMutations: () => ({
     startOAuth: mockStartOAuth,
   }),
+}));
+
+const mockUseVendors = vi.fn();
+vi.mock('@/hooks/use-vendors', () => ({
+  useVendors: mockUseVendors,
 }));
 
 // Mock integrations data
@@ -159,6 +145,38 @@ const defaultProps = {
 describe('PlatformIntegrations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseIntegrationProviders.mockReturnValue({
+      providers: [
+        {
+          id: 'github',
+          name: 'GitHub',
+          description: 'Code hosting',
+          category: 'Development',
+          logoUrl: '/github.png',
+          authType: 'oauth2',
+          oauthConfigured: true,
+          isActive: true,
+          requiredVariables: [],
+          mappedTasks: [],
+          supportsMultipleConnections: false,
+        },
+      ],
+      isLoading: false,
+    });
+    mockUseIntegrationConnections.mockReturnValue({
+      connections: [],
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    mockUseVendors.mockReturnValue({
+      data: {
+        data: {
+          data: [],
+          count: 0,
+        },
+        status: 200,
+      },
+    });
   });
 
   describe('Permission gating', () => {
@@ -327,6 +345,79 @@ describe('PlatformIntegrations', () => {
         'GitHub connected successfully!',
       );
       expect(toast.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Vendor-prioritized ordering', () => {
+    it('shows integrations from vendor list before non-vendor integrations', () => {
+      mockUseIntegrationProviders.mockReturnValue({
+        providers: [
+          {
+            id: 'github',
+            name: 'GitHub',
+            description: 'Code hosting',
+            category: 'Development',
+            logoUrl: '/github.png',
+            authType: 'oauth2',
+            oauthConfigured: true,
+            isActive: true,
+            requiredVariables: [],
+            mappedTasks: [],
+            supportsMultipleConnections: false,
+          },
+          {
+            id: 'slack',
+            name: 'Slack',
+            description: 'Team communication',
+            category: 'Communication',
+            logoUrl: '/slack.png',
+            authType: 'api_key',
+            isActive: true,
+            requiredVariables: [],
+            mappedTasks: [],
+            supportsMultipleConnections: false,
+          },
+        ],
+        isLoading: false,
+      });
+      mockUseIntegrationConnections.mockReturnValue({
+        connections: [
+          {
+            id: 'conn-1',
+            providerSlug: 'github',
+            status: 'active',
+            variables: {},
+          },
+        ],
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseVendors.mockReturnValue({
+        data: {
+          data: {
+            data: [
+              {
+                id: 'vnd-1',
+                name: 'Slack',
+              },
+            ],
+            count: 1,
+          },
+          status: 200,
+        },
+      });
+
+      setMockPermissions(ADMIN_PERMISSIONS);
+
+      render(<PlatformIntegrations {...defaultProps} />);
+
+      const integrationTitles = screen
+        .getAllByRole('heading', { level: 3 })
+        .map((heading) => heading.textContent?.trim())
+        .filter(Boolean);
+
+      expect(integrationTitles[0]).toBe('Slack');
+      expect(integrationTitles[1]).toBe('GitHub');
     });
   });
 });
