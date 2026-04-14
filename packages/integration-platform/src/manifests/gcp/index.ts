@@ -95,6 +95,54 @@ This is industry standard - all GCP security monitoring tools use the same scope
         'Auto-detected after connecting. If not detected, find it at console.cloud.google.com/iam-admin/settings',
       placeholder: 'Auto-detected',
     },
+    {
+      id: 'project_ids',
+      label: 'GCP Projects',
+      type: 'multi-select',
+      required: false,
+      helpText:
+        'Select which GCP projects to scan and monitor. Findings are scoped to these projects.',
+      fetchOptions: async (ctx) => {
+        try {
+          // Detect org first to scope projects
+          const orgData = await ctx.fetch<{
+            organizations?: Array<{
+              name: string;
+              state?: string;
+            }>;
+          }>(
+            'https://cloudresourcemanager.googleapis.com/v3/organizations:search',
+          );
+
+          const activeOrg = (orgData.organizations ?? []).find(
+            (o) => o.state === 'ACTIVE',
+          );
+          const orgId = activeOrg?.name?.replace('organizations/', '');
+
+          const filter = orgId
+            ? `lifecycleState:ACTIVE AND parent.id:${orgId}`
+            : 'lifecycleState:ACTIVE';
+
+          const data = await ctx.fetch<{
+            projects?: Array<{
+              projectId: string;
+              name: string;
+            }>;
+          }>(`/v1/projects?filter=${encodeURIComponent(filter)}&pageSize=50`);
+
+          if (!data.projects?.length) return [];
+
+          return data.projects
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((p) => ({
+              value: p.projectId,
+              label: `${p.name} (${p.projectId})`,
+            }));
+        } catch {
+          return [];
+        }
+      },
+    },
   ],
 
   checks: [],

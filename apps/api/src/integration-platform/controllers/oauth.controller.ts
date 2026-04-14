@@ -364,6 +364,10 @@ export class OAuthController {
           );
         });
 
+      // GCP: skip automatic service detection and scan after OAuth.
+      // The user must first select projects on the integrations page.
+      // Service detection and scanning run after project selection.
+
       // Redirect to success URL
       const successUrl = this.buildRedirectUrl(
         oauthState.redirectUrl,
@@ -527,4 +531,5 @@ export class OAuthController {
     }
     return url.toString();
   }
+
 }

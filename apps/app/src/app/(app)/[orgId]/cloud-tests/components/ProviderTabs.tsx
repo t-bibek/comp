@@ -115,10 +115,13 @@ function CloudConnectionContent({
   }, [connection.id, connection.integrationId, api, refreshServices]);
 
   const handleToggleService = useCallback(
-    async (serviceId: string, enabled: boolean) => {
+    async (serviceId: string, enabled: boolean): Promise<boolean> => {
       setTogglingService(serviceId);
       try {
         await updateServices(serviceId, enabled);
+        return true;
+      } catch {
+        return false;
       } finally {
         setTogglingService(null);
       }

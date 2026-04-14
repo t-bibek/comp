@@ -5,6 +5,10 @@ export interface Finding {
   remediation: string | null;
   status: string | null;
   severity: string | null;
+  serviceId: string | null;
+  findingKey: string | null;
+  resourceId: string | null;
+  projectDisplayName: string | null;
   completedAt: Date | null;
   connectionId: string;
   providerSlug: string;

@@ -593,6 +593,7 @@ interface ConnectionServiceItem {
   description: string;
   implemented: boolean;
   enabled: boolean;
+  projects?: string[];
 }
 
 interface ConnectionServicesMeta {

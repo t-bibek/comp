@@ -248,6 +248,23 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
 
   // Merge/sort integrations, then prioritize entries matching vendors in the org's vendor list.
   const unifiedIntegrations = useMemo<UnifiedIntegration[]>(() => {
+    const platformSortTier = (
+      item: UnifiedIntegration & { type: 'platform' },
+    ): 0 | 1 | 2 => {
+      const { provider, connection } = item;
+      const isComingSoon =
+        provider.authType === 'oauth2' && provider.oauthConfigured === false;
+      if (isComingSoon) return 2;
+
+      const hasEstablishedConnection =
+        connection &&
+        connection.status !== 'disconnected' &&
+        ['active', 'pending', 'error', 'paused'].includes(connection.status);
+      if (hasEstablishedConnection) return 0;
+
+      return 1;
+    };
+
     const platformIntegrations: UnifiedIntegration[] = (providers?.filter((p) => p.isActive) || [])
       .map((provider) => ({
         type: 'platform' as const,
@@ -255,20 +272,9 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
         connection: connectionsByProvider.get(provider.id),
       }))
       .sort((a, b) => {
-        const aConnected = a.connection?.status === 'active';
-        const bConnected = b.connection?.status === 'active';
-        const aNeedsConfig = aConnected && a.connection?.variables === null;
-        const bNeedsConfig = bConnected && b.connection?.variables === null;
-
-        // Warnings first
-        if (aNeedsConfig && !bNeedsConfig) return -1;
-        if (!aNeedsConfig && bNeedsConfig) return 1;
-
-        // Then connected
-        if (aConnected && !bConnected) return -1;
-        if (!aConnected && bConnected) return 1;
-
-        // Then alphabetical
+        const tierA = platformSortTier(a);
+        const tierB = platformSortTier(b);
+        if (tierA !== tierB) return tierA - tierB;
         return a.provider.name.localeCompare(b.provider.name);
       });
 
@@ -545,13 +551,40 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
 
                 const isComingSoon = provider.authType === 'oauth2' && provider.oauthConfigured === false;
 
+                /** Primary CTA is Connect / Set up — card still opens details on click; hide redundant “View details” row */
+                const showConnectOrSetup =
+                  canCreate &&
+                  !needsConfiguration &&
+                  !isConnected &&
+                  !hasError &&
+                  !isComingSoon;
+
                 return (
                   <div
                     key={`platform-${provider.id}`}
+                    className={
+                      isComingSoon
+                        ? undefined
+                        : 'group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+                    }
                     role={isComingSoon ? undefined : 'button'}
                     tabIndex={isComingSoon ? undefined : 0}
+                    aria-label={
+                      isComingSoon
+                        ? undefined
+                        : `Open ${provider.name} — connection details, services, and settings`
+                    }
                     onClick={isComingSoon ? undefined : () => router.push(`/${orgId}/integrations/${provider.id}`)}
-                    onKeyDown={isComingSoon ? undefined : (e) => { if (e.key === 'Enter') router.push(`/${orgId}/integrations/${provider.id}`); }}
+                    onKeyDown={
+                      isComingSoon
+                        ? undefined
+                        : (e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              router.push(`/${orgId}/integrations/${provider.id}`);
+                            }
+                          }
+                    }
                   >
                   <Card
                     className={`relative overflow-hidden transition-all flex flex-col h-full ${isComingSoon ? 'opacity-75' : 'cursor-pointer'} ${
@@ -560,7 +593,7 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
                         : isConnected
                           ? 'border-primary/30 bg-primary/5'
                           : 'hover:border-primary/20 hover:shadow-sm'
-                    }`}
+                    } ${!isComingSoon ? 'group-hover:border-primary/30 group-hover:shadow-md' : ''}`}
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
@@ -657,6 +690,16 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
                         )}
                       </div>
 
+                      {!isComingSoon && !showConnectOrSetup && (
+                        <div className="mt-4 flex items-center justify-end gap-1.5 border-t border-border/50 pt-3 text-xs font-medium text-primary">
+                          <span>View details</span>
+                          <ArrowRight
+                            className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5"
+                            aria-hidden
+                          />
+                        </div>
+                      )}
+
                       <div className="mt-auto pt-4">
                         {needsConfiguration ? (
                           <Button
@@ -714,6 +757,12 @@ export function PlatformIntegrations({ className, taskTemplates }: PlatformInteg
                         ) : null}
                       </div>
                     </CardContent>
+                    {!isComingSoon && (
+                      <div
+                        className="pointer-events-none absolute inset-0 rounded-xl bg-primary/5 opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    )}
                   </Card>
                   </div>
                 );
