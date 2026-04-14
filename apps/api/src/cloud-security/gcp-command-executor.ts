@@ -217,7 +217,7 @@ async function executeOnce(
   logger.log(`${step.method} ${url} — ${step.purpose}`);
   if (effectiveBody && (step.method === 'POST' || step.method === 'PUT' || step.method === 'PATCH')) {
     const bodyStr = JSON.stringify(effectiveBody);
-    logger.log(`  Body (${bodyStr.length} chars): ${bodyStr.substring(0, 2000)}${bodyStr.length > 2000 ? '...' : ''}`);
+    logger.debug(`  Body (${bodyStr.length} chars): ${bodyStr.substring(0, 2000)}${bodyStr.length > 2000 ? '...' : ''}`);
   }
 
   const response = await fetch(url, {

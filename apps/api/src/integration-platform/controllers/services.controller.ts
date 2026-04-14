@@ -97,10 +97,15 @@ export class ServicesController {
 
     // Per-project service mapping (GCP only)
     const servicesByProject =
-      (variables.servicesByProject as Record<string, string[]>) ?? {};
+      variables.servicesByProject &&
+      typeof variables.servicesByProject === 'object' &&
+      !Array.isArray(variables.servicesByProject)
+        ? (variables.servicesByProject as Record<string, string[]>)
+        : {};
     // Invert: service → project IDs
     const projectsByService: Record<string, string[]> = {};
     for (const [projectId, serviceIds] of Object.entries(servicesByProject)) {
+      if (!Array.isArray(serviceIds)) continue;
       for (const svcId of serviceIds) {
         (projectsByService[svcId] ??= []).push(projectId);
       }

@@ -308,10 +308,11 @@ export function ProviderDetailView({
               <GcpProjectPicker
                 organizations={gcpOrgs}
                 selectedProjectIds={gcpSelectedProjectIds}
-                onToggleProject={(orgId, projectId) => {
-                  const next = gcpSelectedProjectIds.includes(projectId)
-                    ? gcpSelectedProjectIds.filter((id) => id !== projectId)
-                    : [...gcpSelectedProjectIds, projectId];
+                onToggleProject={(gcpOrgId, projectId) => {
+                  const prev = gcpSelectedProjectIds;
+                  const next = prev.includes(projectId)
+                    ? prev.filter((id) => id !== projectId)
+                    : [...prev, projectId];
                   setGcpSelectedProjectIds(next);
                   // Build name map keyed by both project ID and project number
                   const allProjects = gcpOrgs.flatMap((o) => o.projects);
@@ -328,10 +329,11 @@ export function ProviderDetailView({
                   void api
                     .post(
                       `/v1/cloud-security/select-gcp-projects/${selectedConnection.id}`,
-                      { projectIds: next, projectNames, gcpOrganizationId: orgId },
+                      { projectIds: next, projectNames, gcpOrganizationId: gcpOrgId },
                     )
                     .then(async (res) => {
                       if (res.error) {
+                        setGcpSelectedProjectIds(prev);
                         toast.error('Failed to update projects');
                         return;
                       }

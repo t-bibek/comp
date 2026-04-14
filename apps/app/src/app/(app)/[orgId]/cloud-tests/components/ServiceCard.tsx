@@ -163,7 +163,7 @@ export function ServiceCard({
             role="switch"
             aria-checked={isEnabled}
             disabled={toggling}
-            onClick={() => void Promise.resolve(onToggle?.(service.id, !isEnabled))}
+            onClick={() => void Promise.resolve(onToggle?.(service.id, !isEnabled)).catch(() => {})}
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors disabled:opacity-50 ${
               isEnabled ? 'bg-primary' : 'bg-muted-foreground/30'
             }`}
