@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { db } from '@db';
-import type {
-  IntegrationConnection,
-  IntegrationConnectionStatus,
-} from '@db';
+import type { IntegrationConnection, IntegrationConnectionStatus } from '@db';
 
 export interface CreateConnectionDto {
   providerId: string;
