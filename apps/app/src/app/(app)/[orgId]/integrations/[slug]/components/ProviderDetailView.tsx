@@ -84,6 +84,7 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
   // Services hook for the selected connection
   const {
     services: connectionServices,
+    meta: servicesMeta,
     refresh: refreshServices,
     updateServices,
   } = useConnectionServices(selectedConnection?.id ?? null);
@@ -251,13 +252,22 @@ export function ProviderDetailView({ provider, initialConnections }: ProviderDet
             {services.length > 0 && (
               <div>
                 <h3 className="text-sm font-semibold mb-3">Services</h3>
-                <ServicesGrid
-                  services={services}
-                  connectionServices={connectionServices}
-                  connectionId={selectedConnection?.id ?? null}
-                  onToggle={handleToggleService}
-                  togglingService={togglingService}
-                />
+                {provider.id === 'gcp' && servicesMeta.detectionReady === false ? (
+                  <div className="rounded-lg border bg-muted/20 px-4 py-3">
+                    <p className="text-sm font-medium">Detecting active GCP services...</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      We&apos;ll show real service toggles as soon as detection completes.
+                    </p>
+                  </div>
+                ) : (
+                  <ServicesGrid
+                    services={services}
+                    connectionServices={connectionServices}
+                    connectionId={selectedConnection?.id ?? null}
+                    onToggle={handleToggleService}
+                    togglingService={togglingService}
+                  />
+                )}
               </div>
             )}
           </div>

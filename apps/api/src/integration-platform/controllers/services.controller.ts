@@ -63,6 +63,19 @@ export class ServicesController {
       ? (variables.enabledServices as string[])
       : null;
 
+    const source = legacyEnabledServices
+      ? 'legacy-enabled'
+      : detectedServices
+        ? 'detected'
+        : 'manifest-default';
+    const detectionCompletedAt =
+      typeof variables.serviceDetectionCompletedAt === 'string'
+        ? variables.serviceDetectionCompletedAt
+        : null;
+    const detectionReady = providerSlug === 'gcp'
+      ? source !== 'manifest-default' || Boolean(detectionCompletedAt)
+      : true;
+
     // AWS security baseline: always scanned, hidden from Services tab
     const BASELINE_SERVICES = providerSlug === 'aws'
       ? new Set(['cloudtrail', 'config', 'guardduty', 'iam', 'cloudwatch', 'kms'])
@@ -89,15 +102,8 @@ export class ServicesController {
           } else if (detectedServices) {
             enabled = detectedServices.includes(s.id) && !disabledServices.has(s.id);
           } else {
-            // No detection data yet:
-            // - GCP should default to enabled (scan already runs across SCC categories by default),
-            //   so UI doesn't misleadingly show everything as OFF immediately after OAuth connect.
-            // - Others keep manifest defaults.
-            if (providerSlug === 'gcp') {
-              enabled = !disabledServices.has(s.id);
-            } else {
-              enabled = (s.enabledByDefault ?? true) && !disabledServices.has(s.id);
-            }
+            // Default: use enabledByDefault from manifest, otherwise enabled
+            enabled = (s.enabledByDefault ?? true) && !disabledServices.has(s.id);
           }
 
           return {
@@ -108,6 +114,12 @@ export class ServicesController {
             enabled,
           };
         }),
+      meta: {
+        providerSlug,
+        source,
+        detectionReady,
+        detectionCompletedAt,
+      },
     };
   }
 }

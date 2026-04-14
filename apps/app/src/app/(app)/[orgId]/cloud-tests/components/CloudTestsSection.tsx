@@ -199,6 +199,7 @@ export function CloudTestsSection({
     description?: string;
   } | null>(null);
   const [showSetupDialog, setShowSetupDialog] = useState(false);
+  const [showGcpSetupStatus, setShowGcpSetupStatus] = useState(false);
 
   const findingsResponse = api.useSWR<{ data: Finding[]; count: number }>(
     '/v1/cloud-security/findings',
@@ -464,6 +465,15 @@ export function CloudTestsSection({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {providerSlug === 'gcp' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowGcpSetupStatus(true)}
+            >
+              Setup status
+            </Button>
+          )}
           <ScheduledScanPopover connectionId={connectionId} />
           <Button
             variant="outline"
@@ -915,6 +925,27 @@ export function CloudTestsSection({
           loadCapabilities();
         }}
       />
+
+      {providerSlug === 'gcp' && (
+        <Dialog open={showGcpSetupStatus} onOpenChange={setShowGcpSetupStatus}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>GCP setup status</DialogTitle>
+              <DialogDescription>
+                Verify API and IAM readiness for reliable Security Command Center scans.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto pr-1">
+              <GcpSetupGuide
+                connectionId={connectionId}
+                hasOrgId={Boolean(variables?.organization_id)}
+                onRunScan={handleRunScan}
+                isScanning={isScanning}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

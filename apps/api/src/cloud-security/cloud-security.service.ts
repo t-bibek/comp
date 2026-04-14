@@ -387,6 +387,7 @@ export class CloudSecurityService {
           ...variables,
           detectedServices: [...existingDetected],
           disabledServices: [...updatedDisabled],
+          serviceDetectionCompletedAt: new Date().toISOString(),
         },
       },
     });

@@ -88,7 +88,12 @@ function CloudConnectionContent({
   onScanComplete: () => void;
 }) {
   const api = useApi();
-  const { services, refresh: refreshServices, updateServices } = useConnectionServices(connection.id);
+  const {
+    services,
+    meta: servicesMeta,
+    refresh: refreshServices,
+    updateServices,
+  } = useConnectionServices(connection.id);
   const [togglingService, setTogglingService] = useState<string | null>(null);
   const detectedRef = useRef(false);
 
@@ -130,6 +135,8 @@ function CloudConnectionContent({
   }));
 
   const enabledCount = services.filter((s) => s.enabled).length;
+  const waitingForDetection = connection.integrationId === 'gcp' && servicesMeta.detectionReady === false;
+  const showEnabledCount = !waitingForDetection;
 
   return (
     <Tabs defaultValue="findings">
@@ -138,7 +145,7 @@ function CloudConnectionContent({
         <TabsTrigger value="activity">Activity</TabsTrigger>
         <TabsTrigger value="remediations">Remediations</TabsTrigger>
         <TabsTrigger value="services">
-          Services{enabledCount > 0 ? ` (${enabledCount})` : ''}
+          Services{showEnabledCount && enabledCount > 0 ? ` (${enabledCount})` : ''}
         </TabsTrigger>
       </TabsList>
 
@@ -188,7 +195,14 @@ function CloudConnectionContent({
               </span>
             </div>
           </div>
-          {manifestServices.length > 0 ? (
+          {waitingForDetection ? (
+            <div className="rounded-lg border bg-muted/20 px-4 py-3">
+              <p className="text-sm font-medium">Detecting active GCP services...</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                We&apos;ll show real service toggles as soon as detection completes.
+              </p>
+            </div>
+          ) : manifestServices.length > 0 ? (
             <ServicesGrid
               services={manifestServices}
               connectionServices={services}
