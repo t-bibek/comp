@@ -120,15 +120,15 @@ const SERVICE_NAMES: Record<string, string> = {
   'cloud-storage': 'Cloud Storage',
   'vpc-network': 'VPC Network',
   'compute-engine': 'Compute Engine',
-  'iam': 'IAM',
+  iam: 'IAM',
   'cloud-sql': 'Cloud SQL',
-  'gke': 'GKE',
+  gke: 'GKE',
   'cloud-kms': 'Cloud KMS',
   'cloud-logging': 'Cloud Logging',
   'cloud-monitoring': 'Cloud Monitoring',
   'cloud-dns': 'Cloud DNS',
-  'bigquery': 'BigQuery',
-  'pubsub': 'Pub/Sub',
+  bigquery: 'BigQuery',
+  pubsub: 'Pub/Sub',
   'cloud-armor': 'Cloud Armor',
   'security-command-center': 'Security Command Center',
 };
@@ -340,9 +340,12 @@ export class GCPSecurityService {
 
   private async detectEmail(accessToken: string): Promise<string | null> {
     try {
-      const resp = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+      const resp = await fetch(
+        'https://www.googleapis.com/oauth2/v2/userinfo',
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      );
       if (resp.ok) {
         const info = (await resp.json()) as { email?: string };
         return info.email ?? null;
@@ -419,7 +422,12 @@ export class GCPSecurityService {
         actionUrl,
         actionText: stepDef.actionText,
         requiredForScan: stepDef.requiredForScan,
-        adminActions: this.buildEnableApiAdminActions(stepDef, projectId, rawError, actionUrl),
+        adminActions: this.buildEnableApiAdminActions(
+          stepDef,
+          projectId,
+          rawError,
+          actionUrl,
+        ),
       };
     } catch (err) {
       const rawError = err instanceof Error ? err.message : String(err);
@@ -431,7 +439,12 @@ export class GCPSecurityService {
         actionUrl,
         actionText: stepDef.actionText,
         requiredForScan: stepDef.requiredForScan,
-        adminActions: this.buildEnableApiAdminActions(stepDef, projectId, rawError, actionUrl),
+        adminActions: this.buildEnableApiAdminActions(
+          stepDef,
+          projectId,
+          rawError,
+          actionUrl,
+        ),
       };
     }
   }
@@ -723,7 +736,9 @@ export class GCPSecurityService {
   private getFindingsViewerErrorMessage(raw: string): string {
     const message = this.extractGcpError(raw);
 
-    if (/getIamPolicy|resourcemanager\.organizations\.getIamPolicy/i.test(message)) {
+    if (
+      /getIamPolicy|resourcemanager\.organizations\.getIamPolicy/i.test(message)
+    ) {
       return 'Your account cannot read organization IAM policy. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
     }
 
@@ -733,7 +748,11 @@ export class GCPSecurityService {
       return 'Your account cannot grant org IAM roles. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
     }
 
-    if (/permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(message)) {
+    if (
+      /permission denied|does not have permission|forbidden|PERMISSION_DENIED/i.test(
+        message,
+      )
+    ) {
       return 'Your account does not have organization IAM permissions required for auto-setup. Ask a GCP organization admin to grant roles/securitycenter.findingsViewer.';
     }
 
@@ -783,13 +802,19 @@ export class GCPSecurityService {
   }
 
   /**
-   * Auto-detect active GCP projects accessible by the OAuth token.
+   * Detect active GCP projects scoped to a specific organization.
+   * Returns only projects whose parent is the given org ID.
    */
-  async detectProjects(
+  async detectProjectsForOrg(
     accessToken: string,
+    organizationId: string,
   ): Promise<Array<{ id: string; name: string; number: string }>> {
+    const params = new URLSearchParams({
+      pageSize: '50',
+      filter: `lifecycleState:ACTIVE AND parent.id:${organizationId}`,
+    });
     const response = await fetch(
-      'https://cloudresourcemanager.googleapis.com/v1/projects?filter=lifecycleState:ACTIVE&pageSize=50',
+      `https://cloudresourcemanager.googleapis.com/v1/projects?${params.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -799,20 +824,125 @@ export class GCPSecurityService {
     );
 
     if (!response.ok) {
-      this.logger.warn(`Failed to list GCP projects`);
+      this.logger.warn(
+        `Failed to list GCP projects for org ${organizationId}: ${await response.text()}`,
+      );
       return [];
     }
 
     const data = await response.json();
-    return ((data.projects ?? []) as Array<{
-      projectId: string;
-      name: string;
-      projectNumber: string;
-    }>).map((p) => ({
+    return (
+      (data.projects ?? []) as Array<{
+        projectId: string;
+        name: string;
+        projectNumber: string;
+      }>
+    ).map((p) => ({
       id: p.projectId,
       name: p.name,
       number: p.projectNumber,
     }));
+  }
+
+  /**
+   * Auto-detect active GCP projects accessible by the OAuth token.
+   * Tries a direct project list first; if empty (common for org-centric accounts),
+   * lists projects under each accessible organization (parent filter).
+   */
+  async detectProjects(
+    accessToken: string,
+  ): Promise<Array<{ id: string; name: string; number: string }>> {
+    const mapRow = (p: {
+      projectId: string;
+      name: string;
+      projectNumber: string;
+    }) => ({
+      id: p.projectId,
+      name: p.name,
+      number: p.projectNumber,
+    });
+
+    const listProjectsWithFilter = async (
+      filter: string,
+    ): Promise<
+      Array<{ id: string; name: string; number: string }>
+    > => {
+      const params = new URLSearchParams({
+        pageSize: '50',
+        filter,
+      });
+      const response = await fetch(
+        `https://cloudresourcemanager.googleapis.com/v1/projects?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.warn(
+          `Failed to list GCP projects (filter=${filter}): ${errorText}`,
+        );
+        return [];
+      }
+
+      const data = await response.json();
+      return (
+        (data.projects ?? []) as Array<{
+          projectId: string;
+          name: string;
+          projectNumber: string;
+        }>
+      ).map(mapRow);
+    };
+
+    const direct = await listProjectsWithFilter('lifecycleState:ACTIVE');
+    if (direct.length > 0) {
+      this.logger.log(
+        `GCP detectProjects: ${direct.length} project(s) via direct list`,
+      );
+      return direct;
+    }
+
+    const orgs = await this.detectOrganizations(accessToken);
+    if (orgs.length === 0) {
+      this.logger.warn(
+        'GCP detectProjects: no projects from direct list and no organizations — Service Usage detection may be empty',
+      );
+      return [];
+    }
+
+    const seen = new Set<string>();
+    const merged: Array<{ id: string; name: string; number: string }> = [];
+
+    for (const org of orgs) {
+      const underOrg = await listProjectsWithFilter(
+        `lifecycleState:ACTIVE AND parent.id:${org.id}`,
+      );
+      for (const p of underOrg) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          merged.push(p);
+        }
+        if (merged.length >= 20) break;
+      }
+      if (merged.length >= 20) break;
+    }
+
+    if (merged.length > 0) {
+      this.logger.log(
+        `GCP detectProjects: ${merged.length} project(s) via organization scope`,
+      );
+    } else {
+      this.logger.warn(
+        'GCP detectProjects: organization-scoped list returned no projects — check resourcemanager.projects.list on the org',
+      );
+    }
+
+    return merged;
   }
 
   /**
@@ -823,13 +953,19 @@ export class GCPSecurityService {
   async detectServices(
     accessToken: string,
     projects: Array<{ id: string }>,
-  ): Promise<string[]> {
+  ): Promise<{
+    services: string[];
+    servicesByProject: Record<string, string[]>;
+  }> {
     const detected = new Set<string>();
+    const unmappedApis = new Set<string>();
+    const servicesByProject: Record<string, string[]> = {};
 
-    for (const project of projects.slice(0, 5)) {
+    for (const project of projects) {
+      const projectServices = new Set<string>();
       try {
         const response = await fetch(
-          `https://serviceusage.googleapis.com/v1/projects/${project.id}/services?filter=state:ENABLED&pageSize=200`,
+          `https://serviceusage.googleapis.com/v1/projects/${encodeURIComponent(project.id)}/services?filter=state:ENABLED&pageSize=200`,
           {
             headers: {
               Authorization: `Bearer ${accessToken}`,
@@ -853,7 +989,12 @@ export class GCPSecurityService {
           const apiName = svc.config?.name ?? svc.name.split('/').pop() ?? '';
           const mapped = GCP_API_TO_SERVICE[apiName];
           if (mapped) {
-            for (const id of mapped) detected.add(id);
+            for (const id of mapped) {
+              detected.add(id);
+              projectServices.add(id);
+            }
+          } else if (apiName.endsWith('.googleapis.com')) {
+            unmappedApis.add(apiName);
           }
         }
       } catch (err) {
@@ -861,10 +1002,19 @@ export class GCPSecurityService {
           `Service detection failed for ${project.id}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+      servicesByProject[project.id] = [...projectServices];
     }
 
-    this.logger.log(`Detected ${detected.size} GCP service categories: ${[...detected].join(', ')}`);
-    return [...detected];
+    if (detected.size === 0 && unmappedApis.size > 0) {
+      this.logger.warn(
+        `GCP Service Usage: ${unmappedApis.size} enabled API(s) had no UI mapping (sample): ${[...unmappedApis].slice(0, 8).join(', ')}`,
+      );
+    }
+
+    this.logger.log(
+      `Detected ${detected.size} GCP service categories: ${[...detected].join(', ')}`,
+    );
+    return { services: [...detected], servicesByProject };
   }
 
   /**
@@ -882,63 +1032,101 @@ export class GCPSecurityService {
     if (!accessToken) {
       throw new Error('Access token is required');
     }
-    if (!organizationId) {
-      this.logger.warn('GCP Organization ID not configured');
+
+    // Read explicitly selected projects
+    const projectIds: string[] = Array.isArray(variables.project_ids)
+      ? (variables.project_ids as string[])
+      : [];
+
+    // If projects are selected, query per-project; otherwise fall back to org-level
+    const scopes: Array<
+      { type: 'project'; id: string } | { type: 'organization'; id: string }
+    > =
+      projectIds.length > 0
+        ? projectIds.map((id) => ({ type: 'project' as const, id }))
+        : organizationId
+          ? [{ type: 'organization' as const, id: organizationId }]
+          : [];
+
+    if (scopes.length === 0) {
+      this.logger.warn('GCP: No projects selected and no Organization ID');
       throw new Error(
-        'GCP_ORG_MISSING: Organization ID not detected. Go to the GCP integration settings to auto-detect your organization.',
+        'GCP_ORG_MISSING: No projects selected and Organization ID not detected. Go to the GCP integration settings to configure.',
       );
     }
 
-    this.logger.log(`Scanning GCP SCC for org ${organizationId}`);
+    const scopeLabel =
+      projectIds.length > 0
+        ? `${projectIds.length} project(s): ${projectIds.join(', ')}`
+        : `org ${organizationId}`;
+    this.logger.log(`Scanning GCP SCC for ${scopeLabel}`);
 
     const allFindings: SecurityFinding[] = [];
     const enabledServiceSet = enabledServices ? new Set(enabledServices) : null;
-    let pageToken: string | undefined;
+    const seenIds = new Set<string>();
 
-    do {
-      const response = await this.fetchFindings(accessToken, organizationId, pageToken);
+    for (const scope of scopes) {
+      try {
+        let pageToken: string | undefined;
+        do {
+          const response = await this.fetchFindings(
+            accessToken,
+            scope,
+            pageToken,
+          );
 
-      for (const result of response.findings) {
-        const f = result.finding;
-        const serviceId = CATEGORY_TO_SERVICE[f.category] ?? 'security-command-center';
-        if (enabledServiceSet && !enabledServiceSet.has(serviceId)) {
-          continue;
-        }
-        const findingKey = `gcp-${serviceId}-${f.category.toLowerCase().replace(/_/g, '-')}`;
+          for (const result of response.findings) {
+            const f = result.finding;
+            // Deduplicate across project scopes
+            if (seenIds.has(f.name)) continue;
+            seenIds.add(f.name);
 
-        // Build remediation text from SCC's nextSteps + our AI guidance hint
-        const remediation = this.buildRemediation(f);
+            const serviceId =
+              CATEGORY_TO_SERVICE[f.category] ?? 'security-command-center';
+            if (enabledServiceSet && !enabledServiceSet.has(serviceId)) {
+              continue;
+            }
+            const findingKey = `gcp-${serviceId}-${f.category.toLowerCase().replace(/_/g, '-')}`;
+            const remediation = this.buildRemediation(f);
 
-        allFindings.push({
-          id: f.name,
-          title: this.formatTitle(f.category),
-          description: f.description || `Security finding: ${f.category}`,
-          severity: this.mapSeverity(f.severity),
-          resourceType: result.resource?.type ?? 'gcp-resource',
-          resourceId: f.resourceName,
-          remediation,
-          evidence: {
-            findingKey,
-            serviceId,
-            serviceName: SERVICE_NAMES[serviceId] ?? serviceId,
-            category: f.category,
-            state: f.state,
-            resourceName: f.resourceName,
-            severity: f.severity,
-            eventTime: f.eventTime,
-            externalUri: f.externalUri,
-            findingClass: f.findingClass,
-            compliances: f.compliances,
-            sourceProperties: f.sourceProperties,
-            projectDisplayName: result.resource?.projectDisplayName,
-            resourceDisplayName: result.resource?.displayName,
-          },
-          createdAt: f.createTime,
-        });
+            allFindings.push({
+              id: f.name,
+              title: this.formatTitle(f.category),
+              description:
+                f.description || `Security finding: ${f.category}`,
+              severity: this.mapSeverity(f.severity),
+              resourceType: result.resource?.type ?? 'gcp-resource',
+              resourceId: f.resourceName,
+              remediation,
+              evidence: {
+                findingKey,
+                serviceId,
+                serviceName: SERVICE_NAMES[serviceId] ?? serviceId,
+                category: f.category,
+                state: f.state,
+                resourceName: f.resourceName,
+                severity: f.severity,
+                eventTime: f.eventTime,
+                externalUri: f.externalUri,
+                findingClass: f.findingClass,
+                compliances: f.compliances,
+                sourceProperties: f.sourceProperties,
+                projectDisplayName: result.resource?.projectDisplayName,
+                resourceDisplayName: result.resource?.displayName,
+              },
+              createdAt: f.createTime,
+            });
+          }
+
+          pageToken = response.nextPageToken;
+        } while (pageToken);
+      } catch (err) {
+        // Log and continue with remaining projects — don't fail the whole scan
+        this.logger.warn(
+          `GCP SCC query failed for ${scope.type} ${scope.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
-
-      pageToken = response.nextPageToken;
-    } while (pageToken);
+    }
 
     this.logger.log(`Found ${allFindings.length} GCP security findings`);
     return allFindings;
@@ -946,11 +1134,15 @@ export class GCPSecurityService {
 
   private async fetchFindings(
     accessToken: string,
-    organizationId: string,
+    scope: { type: 'organization' | 'project'; id: string },
     pageToken?: string,
   ): Promise<{ findings: SCCFindingResult[]; nextPageToken?: string }> {
+    const parent =
+      scope.type === 'project'
+        ? `projects/${scope.id}`
+        : `organizations/${scope.id}`;
     const url = new URL(
-      `https://securitycenter.googleapis.com/v2/organizations/${organizationId}/sources/-/findings`,
+      `https://securitycenter.googleapis.com/v2/${parent}/sources/-/findings`,
     );
     url.searchParams.set('pageSize', '500');
     url.searchParams.set('filter', 'state="ACTIVE"');
@@ -971,7 +1163,9 @@ export class GCPSecurityService {
       this.logger.error(`GCP SCC API error: ${errorText}`);
 
       if (errorText.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')) {
-        throw new Error('OAuth scopes insufficient. Reconnect the GCP integration.');
+        throw new Error(
+          'OAuth scopes insufficient. Reconnect the GCP integration.',
+        );
       }
       if (
         errorText.includes('SERVICE_DISABLED') ||
@@ -980,10 +1174,13 @@ export class GCPSecurityService {
       ) {
         throw new Error(
           'SCC_NOT_ACTIVATED: Security Command Center is not activated on your GCP organization. ' +
-          'Enable it at https://console.cloud.google.com/security/command-center — the Standard tier is free.',
+            'Enable it at https://console.cloud.google.com/security/command-center — the Standard tier is free.',
         );
       }
-      if (errorText.includes('PERMISSION_DENIED') || errorText.includes('403')) {
+      if (
+        errorText.includes('PERMISSION_DENIED') ||
+        errorText.includes('403')
+      ) {
         throw new Error(
           'Permission denied. Grant "Security Center Findings Viewer" role at the organization level.',
         );
@@ -1027,11 +1224,16 @@ export class GCPSecurityService {
     }
 
     if (f.compliances?.length) {
-      const standards = f.compliances.map((c) => `${c.standard} ${c.version} (${c.ids.join(', ')})`);
+      const standards = f.compliances.map(
+        (c) => `${c.standard} ${c.version} (${c.ids.join(', ')})`,
+      );
       parts.push(`Compliance: ${standards.join('; ')}`);
     }
 
-    return parts.join('\n\n') || `Review and remediate this ${f.category} finding in GCP Console.`;
+    return (
+      parts.join('\n\n') ||
+      `Review and remediate this ${f.category} finding in GCP Console.`
+    );
   }
 
   /** Convert SCC SCREAMING_SNAKE_CASE category to readable title. */

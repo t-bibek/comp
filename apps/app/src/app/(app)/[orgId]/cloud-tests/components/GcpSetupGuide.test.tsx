@@ -78,8 +78,10 @@ describe('GcpSetupGuide', () => {
       <GcpSetupGuide
         connectionId="conn_1"
         hasOrgId={false}
+        hasSelectedProjects={true}
         onRunScan={vi.fn()}
         isScanning={false}
+        orgId="org_1"
       />,
     );
 

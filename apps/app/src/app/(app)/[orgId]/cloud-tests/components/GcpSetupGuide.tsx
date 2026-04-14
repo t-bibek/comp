@@ -8,8 +8,15 @@ import { toast } from 'sonner';
 interface GcpSetupGuideProps {
   connectionId: string;
   hasOrgId: boolean;
+  hasSelectedProjects: boolean;
   onRunScan: () => void;
   isScanning: boolean;
+  orgId: string;
+}
+
+interface GcpProject {
+  id: string;
+  name: string;
 }
 
 interface SetupStep {
@@ -32,23 +39,21 @@ interface SetupStep {
   >;
 }
 
-const AUTO_FIX_ROLES = [
-  { role: 'Storage Admin', scope: 'Cloud Storage fixes' },
-  { role: 'Compute Security Admin', scope: 'Firewall and network fixes' },
-  { role: 'Cloud SQL Admin', scope: 'Database configuration fixes' },
-  { role: 'Cloud KMS Admin', scope: 'Encryption key fixes' },
-];
 
 export function GcpSetupGuide({
   connectionId,
   hasOrgId,
+  hasSelectedProjects,
   onRunScan,
   isScanning,
+  orgId,
 }: GcpSetupGuideProps) {
   const api = useApi();
   const [isSettingUp, setIsSettingUp] = useState(false);
   const [resolvingStepId, setResolvingStepId] = useState<string | null>(null);
   const [copiedCommandKey, setCopiedCommandKey] = useState<string | null>(null);
+  const [projects, setProjects] = useState<GcpProject[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [setupResult, setSetupResult] = useState<{
     email: string | null;
     steps: SetupStep[];
@@ -57,25 +62,31 @@ export function GcpSetupGuide({
 
   const ranRef = useRef(false);
 
-  // Auto-run setup on first mount
+  // Auto-run setup on first mount (only if projects are selected)
   useEffect(() => {
-    if (ranRef.current) return;
+    if (ranRef.current || !hasSelectedProjects) return;
     ranRef.current = true;
     handleAutoSetup();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasSelectedProjects]);
 
   const hasBlockingFailuresForSteps = (steps: SetupStep[]) =>
     steps.some((step) => !step.success && step.requiredForScan !== false);
 
-  const handleAutoSetup = async () => {
+  const handleAutoSetup = async (overrideProjectId?: string) => {
     setIsSettingUp(true);
     try {
+      const body: { projectId?: string } = {};
+      const projectToUse = overrideProjectId ?? selectedProjectId;
+      if (projectToUse) body.projectId = projectToUse;
+
       const resp = await api.post<{
         email: string | null;
         steps: SetupStep[];
         organizationId?: string;
-      }>(`/v1/cloud-security/setup-gcp/${connectionId}`, {});
+        projectId?: string;
+        projects?: GcpProject[];
+      }>(`/v1/cloud-security/setup-gcp/${connectionId}`, body);
 
       if (resp.error) {
         toast.error(typeof resp.error === 'string' ? resp.error : 'Setup failed');
@@ -84,6 +95,9 @@ export function GcpSetupGuide({
 
       if (resp.data) {
         setSetupResult(resp.data);
+        if (resp.data.projects?.length) setProjects(resp.data.projects);
+        if (resp.data.projectId) setSelectedProjectId(resp.data.projectId);
+
         const succeeded = resp.data.steps.filter((s) => s.success).length;
         const total = resp.data.steps.length;
         const hasBlockingFailures = hasBlockingFailuresForSteps(resp.data.steps);
@@ -109,7 +123,10 @@ export function GcpSetupGuide({
         email: string | null;
         step: SetupStep;
         organizationId?: string;
+        projects?: GcpProject[];
       }>(step.resolveAction.endpoint, step.resolveAction.body);
+
+      if (resp.data?.projects?.length) setProjects(resp.data.projects);
 
       if (resp.error || !resp.data?.step) {
         toast.error(typeof resp.error === 'string' ? resp.error : 'Could not resolve this step');
@@ -188,10 +205,29 @@ export function GcpSetupGuide({
           <p className="text-xs text-muted-foreground mt-0.5">
             OAuth signs in your account, but GCP still requires org-level IAM/API access for Security Command Center. We&apos;ll try to set it up automatically first.
           </p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">
+            For full auto-fix and rollback capabilities, connect with a GCP account that has Owner or Editor role on the selected projects.
+          </p>
         </div>
 
+        {/* No projects selected — direct user to integrations page */}
+        {!hasSelectedProjects && (
+          <div className="space-y-3">
+            <StepRow done label="Connected via OAuth" />
+            {hasOrgId && <StepRow done label="Organization detected" />}
+            <StepRow failed label="No projects selected" error="Select at least one GCP project to scan." />
+            <a
+              href={`/${orgId}/integrations/gcp`}
+              className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-4 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
+            >
+              Select projects in GCP integration settings
+              <span aria-hidden>→</span>
+            </a>
+          </div>
+        )}
+
         {/* Auto-setup in progress */}
-        {!setupResult && (
+        {hasSelectedProjects && !setupResult && (
           <div className="space-y-3">
             <StepRow done label="Connected via OAuth" />
             {hasOrgId && <StepRow done label="Organization detected" />}
@@ -213,6 +249,15 @@ export function GcpSetupGuide({
             {setupResult.email && (
               <StepRow done label={`Account: ${setupResult.email}`} />
             )}
+
+            {/* Project info */}
+            {selectedProjectId && (
+              <StepRow
+                done
+                label={`Setup project: ${projects.find((p) => p.id === selectedProjectId)?.name ?? selectedProjectId}`}
+              />
+            )}
+
             {setupResult.steps.map((step) => (
               <StepRow
                 key={step.id}
@@ -327,7 +372,7 @@ export function GcpSetupGuide({
           <div className="flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
-              onClick={handleAutoSetup}
+              onClick={() => void handleAutoSetup()}
               disabled={isSettingUp}
               className="w-full rounded-lg border bg-background px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
             >
@@ -349,26 +394,6 @@ export function GcpSetupGuide({
         )}
       </div>
 
-      {/* Auto-fix roles info */}
-      <details className="rounded-xl border">
-        <summary className="cursor-pointer px-5 py-3 text-sm font-medium hover:bg-muted/30 transition-colors">
-          Optional: Write roles for one-click remediation
-        </summary>
-        <div className="px-5 pb-4 space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Scanning only needs read access. These write roles are only for applying one-click fixes from the findings list.
-            If a fix needs more access, we show the exact <code className="font-mono">gcloud</code> command at fix time.
-          </p>
-          <div className="space-y-1.5">
-            {AUTO_FIX_ROLES.map((r) => (
-              <div key={r.role} className="flex items-center justify-between text-xs">
-                <code className="font-mono text-[11px]">{r.role}</code>
-                <span className="text-muted-foreground">{r.scope}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </details>
     </div>
   );
 }
