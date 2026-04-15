@@ -23,11 +23,13 @@ interface ProviderTabsProps {
   onConnectionTabChange: (providerType: string, connectionId: string) => void;
   onRunScan: (connectionId?: string) => Promise<string | null>;
   onAddConnection: (providerType: string) => void;
+  onReconnect: (providerType: string) => void;
   onConfigure: (provider: Provider) => void;
   needsConfiguration: (provider: Provider) => boolean;
   requiresReconnect: (provider: Provider) => boolean;
   canRunScan?: boolean;
   canAddConnection?: boolean;
+  isReconnecting?: boolean;
   orgId: string;
 }
 
@@ -235,11 +237,13 @@ export function ProviderTabs({
   onConnectionTabChange,
   onRunScan,
   onAddConnection,
+  onReconnect,
   onConfigure,
   needsConfiguration,
   requiresReconnect,
   canRunScan,
   canAddConnection,
+  isReconnecting,
   orgId,
 }: ProviderTabsProps) {
   return (
@@ -328,7 +332,12 @@ export function ProviderTabs({
                                 </p>
                               </div>
                               {canAddConnection !== false && (
-                                <Button size="sm" onClick={() => onAddConnection(providerType)}>
+                                <Button
+                                  size="sm"
+                                  onClick={() => onReconnect(providerType)}
+                                  disabled={isReconnecting}
+                                  loading={isReconnecting}
+                                >
                                   Reconnect
                                 </Button>
                               )}

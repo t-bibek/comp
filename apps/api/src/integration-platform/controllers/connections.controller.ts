@@ -262,7 +262,7 @@ export class ConnectionsController {
   }
 
   /**
-   * List connections for an organization
+   * List connections for an organization (excludes soft-deleted/disconnected)
    */
   @Get()
   @RequirePermission('integration', 'read')
@@ -270,20 +270,22 @@ export class ConnectionsController {
     const connections =
       await this.connectionService.getOrganizationConnections(organizationId);
 
-    return connections.map((c) => ({
-      id: c.id,
-      providerId: c.providerId,
-      providerSlug: (c as any).provider?.slug,
-      providerName: (c as any).provider?.name,
-      status: c.status,
-      authStrategy: c.authStrategy,
-      lastSyncAt: c.lastSyncAt,
-      nextSyncAt: c.nextSyncAt,
-      errorMessage: c.errorMessage,
-      variables: c.variables,
-      metadata: c.metadata,
-      createdAt: c.createdAt,
-    }));
+    return connections
+      .filter((c) => c.status !== 'disconnected')
+      .map((c) => ({
+        id: c.id,
+        providerId: c.providerId,
+        providerSlug: (c as any).provider?.slug,
+        providerName: (c as any).provider?.name,
+        status: c.status,
+        authStrategy: c.authStrategy,
+        lastSyncAt: c.lastSyncAt,
+        nextSyncAt: c.nextSyncAt,
+        errorMessage: c.errorMessage,
+        variables: c.variables,
+        metadata: c.metadata,
+        createdAt: c.createdAt,
+      }));
   }
 
   /**
@@ -1177,6 +1179,10 @@ export class ConnectionsController {
     }
     if (Array.isArray(mergedCredentials.regions)) {
       metaUpdates.regions = mergedCredentials.regions;
+    }
+    // Mark cloud credential updates as reconnections so reconnect banners clear
+    if (manifest.category === 'Cloud') {
+      metaUpdates.reconnectedAt = new Date().toISOString();
     }
     if (Object.keys(metaUpdates).length > 0) {
       const existingMeta =
