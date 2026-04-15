@@ -1,3 +1,10 @@
+## [3.22.2](https://github.com/trycompai/comp/compare/v3.22.1...v3.22.2) (2026-04-15)
+
+
+### Bug Fixes
+
+* **cloud-tests:** sync connection state between pages and fix reconnect flow ([c7368ea](https://github.com/trycompai/comp/commit/c7368eac0f9013dfcef7b8c5a8acab0f78c1f1c1))
+
 ## [3.22.1](https://github.com/trycompai/comp/compare/v3.22.0...v3.22.1) (2026-04-15)
 
 
