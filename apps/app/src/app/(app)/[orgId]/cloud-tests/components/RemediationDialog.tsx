@@ -10,11 +10,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@trycompai/ui/dialog';
+import { useRealtimeRun } from '@trigger.dev/react-hooks';
 import { AlertTriangle, ListOrdered, Loader2, RotateCcw } from 'lucide-react';
+import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { startSingleFix } from '../actions/single-fix';
 import { AcknowledgmentPanel } from './AcknowledgmentPanel';
 import { PermissionErrorPanel } from './PermissionErrorPanel';
+
+interface SingleFixProgress {
+  phase: 'executing' | 'success' | 'failed' | 'needs_permissions';
+  error?: string;
+  actionId?: string;
+  permissionError?: { missingActions: string[]; fixScript?: string };
+}
 
 interface RemediationDialogProps {
   open: boolean;
@@ -259,6 +269,7 @@ export function RemediationDialog({
   onComplete,
 }: RemediationDialogProps) {
   const api = useApi();
+  const { orgId } = useParams<{ orgId: string }>();
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -267,6 +278,50 @@ export function RemediationDialog({
   const [error, setError] = useState<string | null>(null);
   const [permissionError, setPermissionError] = useState<{ missingActions: string[]; fixScript?: string } | null>(null);
   const [acknowledgment, setAcknowledgment] = useState<string | null>(null);
+
+  // Trigger.dev state for async execution
+  const [runId, setRunId] = useState<string | null>(null);
+  const [triggerAccessToken, setTriggerAccessToken] = useState<string | null>(null);
+
+  const { run } = useRealtimeRun(runId ?? '', {
+    accessToken: triggerAccessToken ?? undefined,
+    enabled: Boolean(runId && triggerAccessToken),
+  });
+
+  // Watch task progress and update dialog state
+  useEffect(() => {
+    const progress = (run?.metadata as { progress?: SingleFixProgress } | undefined)?.progress;
+    if (!progress || progress.phase === 'executing') return;
+
+    if (progress.phase === 'success') {
+      setIsExecuting(false);
+      setPreview(null);
+      setError(null);
+      setSucceeded(true);
+      toast.success('Fix applied successfully');
+      onComplete?.();
+      setTimeout(() => {
+        onOpenChange(false);
+        setSucceeded(false);
+        setRunId(null);
+        setTriggerAccessToken(null);
+      }, 4000);
+    } else if (progress.phase === 'failed') {
+      setIsExecuting(false);
+      setError(progress.error || 'Remediation failed');
+      setRunId(null);
+      setTriggerAccessToken(null);
+    } else if (progress.phase === 'needs_permissions') {
+      setIsExecuting(false);
+      setError(progress.error || 'Missing permissions');
+      if (progress.permissionError) {
+        setPermissionError(progress.permissionError);
+      }
+      setRunId(null);
+      setTriggerAccessToken(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.metadata]);
 
   // Ref to store permissions across rechecks (avoids stale closure in useCallback)
   const permissionsRef = useRef<string[] | undefined>(undefined);
@@ -313,6 +368,9 @@ export function RemediationDialog({
     setError(null);
     setPermissionError(null);
     setAcknowledgment(null);
+    setRunId(null);
+    setTriggerAccessToken(null);
+    setSucceeded(false);
 
     // Guided-only: skip API call, use local data
     if (guidedOnly && guidedSteps) {
@@ -339,45 +397,23 @@ export function RemediationDialog({
     setError(null);
     setPermissionError(null);
     try {
-      const response = await api.post<{
-        status: string;
-        error?: string;
-        permissionError?: { missingActions: string[]; fixScript?: string };
-      }>(
-        '/v1/cloud-security/remediation/execute',
-        { connectionId, checkResultId, remediationKey, acknowledgment },
-      );
-      if (response.error) {
-        const msg =
-          typeof response.error === 'string'
-            ? response.error
-            : 'Remediation failed';
-        setError(msg);
+      const result = await startSingleFix({
+        connectionId,
+        organizationId: orgId,
+        checkResultId,
+        remediationKey,
+        acknowledgment: acknowledgment ?? undefined,
+      });
+      if (result.error || !result.data) {
+        setError(result.error || 'Failed to start fix');
+        setIsExecuting(false);
         return;
       }
-
-      const data = response.data;
-      if (data?.status === 'success') {
-        setPreview(null);
-        setError(null);
-        setSucceeded(true);
-        toast.success('Fix applied successfully');
-        // Trigger re-scan, then close dialog after user sees confirmation
-        onComplete?.();
-        setTimeout(() => {
-          onOpenChange(false);
-          setSucceeded(false);
-        }, 4000);
-      } else {
-        const msg = data?.error || 'Remediation failed';
-        setError(msg);
-        if (data?.permissionError) {
-          setPermissionError(data.permissionError);
-        }
-      }
+      // Task started — useRealtimeRun effect handles the rest
+      setRunId(result.data.runId);
+      setTriggerAccessToken(result.data.accessToken);
     } catch {
-      setError('Remediation failed. Please try again.');
-    } finally {
+      setError('Failed to start fix');
       setIsExecuting(false);
     }
   };
