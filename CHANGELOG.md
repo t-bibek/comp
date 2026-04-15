@@ -1,3 +1,10 @@
+## [3.22.1](https://github.com/trycompai/comp/compare/v3.22.0...v3.22.1) (2026-04-15)
+
+
+### Bug Fixes
+
+* **browser-automation:** upgrade stagehand to support sonnet 4.6 for CUA ([cea0413](https://github.com/trycompai/comp/commit/cea04130e84c6a5078ae87f3591e6299fbf72cde))
+
 # [3.22.0](https://github.com/trycompai/comp/compare/v3.21.2...v3.22.0) (2026-04-14)
 
 
