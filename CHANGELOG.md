@@ -1,3 +1,15 @@
+## [3.23.2](https://github.com/trycompai/comp/compare/v3.23.1...v3.23.2) (2026-04-16)
+
+
+### Bug Fixes
+
+* **api:** accept MIME types with parameters or whitespace (CS-217) ([53cf88a](https://github.com/trycompai/comp/commit/53cf88a2c87d3088e7aa45a9c644baf65cfb684a))
+* **integrations:** clear stale task status after connection disconnect (CS-166) ([ecc3c0a](https://github.com/trycompai/comp/commit/ecc3c0adbe1b07a348890ffb15da48fcc6df738f))
+* **integrations:** harden disconnect re-eval (CS-166 review) ([9f140e1](https://github.com/trycompai/comp/commit/9f140e1213f1c3f8335c63733152017e824fce8b))
+* **pdf:** prepend bullet/number markers to list items in table cells ([9dea98a](https://github.com/trycompai/comp/commit/9dea98a74e232fccc912cf43084a8ec4f9fb9a1c))
+* **pdf:** render Tiptap tables in policy PDF exports (CS-221) ([1f7d7a5](https://github.com/trycompai/comp/commit/1f7d7a5164b890536cd136b6280f02f323a4517a))
+* **pdf:** separate text from multi-paragraph table cells with newlines ([2548169](https://github.com/trycompai/comp/commit/2548169967cff3480c1258f31b65785fa8c629ce))
+
 ## [3.23.1](https://github.com/trycompai/comp/compare/v3.23.0...v3.23.1) (2026-04-16)
 
 
