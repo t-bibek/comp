@@ -4,7 +4,9 @@ import { MetricsSection } from './MetricsSection';
 
 describe('MetricsSection (CS-97)', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    // shouldAdvanceTime lets React effects flush on their normal tick
+    // while still letting us pin `new Date()` with vi.setSystemTime.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
   afterEach(() => {
@@ -17,21 +19,37 @@ describe('MetricsSection (CS-97)', () => {
     expect(screen.getByText('Every day at 9:00 AM UTC')).toBeInTheDocument();
   });
 
-  it('renders the next run as a concrete weekday + time rather than the old hardcoded "Tomorrow 9:00 AM"', () => {
+  it('uses an SSR-safe placeholder for the next run (defers date formatting to post-mount)', () => {
+    // Verify the initial JSX does NOT synchronously format a Date — that's
+    // the property that keeps SSR and hydration outputs identical. We
+    // simulate "server-side" rendering with renderToString and assert the
+    // next-run cell contains the em-dash placeholder rather than a formatted
+    // weekday/time.
+    const { renderToString } = require('react-dom/server') as typeof import('react-dom/server');
+    vi.setSystemTime(new Date('2026-04-16T07:00:00Z'));
+    const html = renderToString(
+      <MetricsSection initialVersions={[]} initialRuns={[]} />,
+    );
+    expect(html).not.toMatch(/Mon|Tue|Wed|Thu|Fri|Sat|Sun/);
+    expect(html).toContain('—');
+  });
+
+  it('fills in the next-run label after mount with a concrete weekday + time', async () => {
     vi.setSystemTime(new Date('2026-04-16T07:00:00Z'));
     render(<MetricsSection initialVersions={[]} initialRuns={[]} />);
 
-    // The old hardcoded literals must be gone.
+    // Old hardcoded literals must never appear.
     expect(screen.queryByText('Every Day 9:00 AM')).not.toBeInTheDocument();
     expect(screen.queryByText('Tomorrow 9:00 AM')).not.toBeInTheDocument();
 
-    // The next-run line should be a real locale string formatted as
-    // "Weekday H:MM AM/PM", which is NOT the word "Tomorrow".
-    const nextRunLabels = screen.getAllByText(/\d{1,2}:\d{2}\s(AM|PM)$/);
+    // After mount the effect runs and the real label shows up.
+    const nextRunLabels = await screen.findAllByText(
+      /\d{1,2}:\d{2}\s(AM|PM)$/,
+    );
     expect(nextRunLabels.length).toBeGreaterThan(0);
   });
 
-  it('picks today (UTC) when the current time is before 09:00 UTC', () => {
+  it('picks today (UTC) when the current time is before 09:00 UTC', async () => {
     // 2026-04-16 07:00 UTC → next run is 2026-04-16 09:00 UTC (same day).
     vi.setSystemTime(new Date('2026-04-16T07:00:00Z'));
     render(<MetricsSection initialVersions={[]} initialRuns={[]} />);
@@ -45,10 +63,10 @@ describe('MetricsSection (CS-97)', () => {
         hour12: true,
       },
     );
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 
-  it('picks the next day (UTC) when the current time is past 09:00 UTC', () => {
+  it('picks the next day (UTC) when the current time is past 09:00 UTC', async () => {
     // 2026-04-16 10:00 UTC → today's run already happened, next is 2026-04-17 09:00 UTC.
     vi.setSystemTime(new Date('2026-04-16T10:00:00Z'));
     render(<MetricsSection initialVersions={[]} initialRuns={[]} />);
@@ -62,6 +80,6 @@ describe('MetricsSection (CS-97)', () => {
         hour12: true,
       },
     );
-    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 });

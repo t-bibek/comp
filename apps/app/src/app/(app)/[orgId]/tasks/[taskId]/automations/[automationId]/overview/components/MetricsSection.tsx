@@ -1,7 +1,7 @@
 'use client';
 
 import type { EvidenceAutomationRun, EvidenceAutomationVersion } from '@db';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface MetricsSectionProps {
   initialVersions: EvidenceAutomationVersion[];
@@ -33,7 +33,16 @@ export function MetricsSection({
   // comp-private/apps/enterprise-api/src/trigger/automation/run-automations-schedule.ts).
   // Render the schedule explicitly in UTC and the next run in the user's
   // local timezone so the label matches when it actually fires.
-  const nextRun = useMemo(() => {
+  //
+  // The next-run label is computed on the client only (useState + useEffect
+  // instead of useMemo) to avoid a hydration mismatch: Node.js renders in
+  // the server's timezone + locale (typically UTC) while the browser renders
+  // in the user's, and `new Date()` can also tick across 09:00 UTC between
+  // the two renders and produce a different weekday. We render `—` during
+  // SSR and fill it in once mounted.
+  const [nextRunLabel, setNextRunLabel] = useState<string | null>(null);
+
+  useEffect(() => {
     const now = new Date();
     const next = new Date(
       Date.UTC(
@@ -49,7 +58,14 @@ export function MetricsSection({
     if (next.getTime() <= now.getTime()) {
       next.setUTCDate(next.getUTCDate() + 1);
     }
-    return next;
+    setNextRunLabel(
+      next.toLocaleString(undefined, {
+        weekday: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    );
   }, []);
 
   return (
@@ -69,14 +85,7 @@ export function MetricsSection({
 
       <div className="px-4">
         <p className="text-xs text-muted-foreground mb-1">Next Run</p>
-        <p className="text-sm font-medium">
-          {nextRun.toLocaleString(undefined, {
-            weekday: 'short',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true,
-          })}
-        </p>
+        <p className="text-sm font-medium">{nextRunLabel ?? '—'}</p>
       </div>
 
       <div className="px-4">
