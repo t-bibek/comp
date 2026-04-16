@@ -448,10 +448,10 @@ export class PolicyPdfRendererService {
         const isHeader = cell.type === 'tableHeader';
         const colspan = cell.attrs?.colspan ?? 1;
         const width = colWidth * colspan;
-        const rawText = cell.content
-          ? this.extractTextFromContent(cell.content)
-          : '';
+        const rawText = this.extractCellText(cell.content ?? []);
         const cleanText = this.cleanTextForPDF(rawText);
+        // splitTextToSize respects embedded \n, so multi-paragraph cells
+        // wrap into separate visual rows within the same cell.
         const lines = config.doc.splitTextToSize(
           cleanText || ' ',
           width - cellPadding * 2,
@@ -502,6 +502,30 @@ export class PolicyPdfRendererService {
     }
 
     config.yPosition += config.lineHeight * 0.5;
+  }
+
+  /**
+   * Extract display text from a table cell's block-level content.
+   *
+   * Tiptap cells wrap their content in block nodes (one `paragraph` per line,
+   * plus the occasional `hardBreak`). Joining top-level blocks with '\n'
+   * preserves the visual separation a user sees in the editor so that
+   * splitTextToSize wraps each intended line separately — without it, two
+   * paragraphs like "Retention Period" and "30 days" would render as the
+   * single concatenated string "Retention Period30 days".
+   */
+  private extractCellText(cellContent: JSONContent[]): string {
+    return cellContent
+      .map((block) => this.extractInlineText(block))
+      .filter((s) => s.length > 0)
+      .join('\n');
+  }
+
+  private extractInlineText(node: JSONContent): string {
+    if (node.type === 'hardBreak') return '\n';
+    if (node.text) return node.text;
+    if (!node.content) return '';
+    return node.content.map((child) => this.extractInlineText(child)).join('');
   }
 
   renderPoliciesPdfBuffer(

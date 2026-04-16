@@ -303,6 +303,23 @@ const processContent = (config: PDFConfig, content: JSONContent[], level: number
   }
 };
 
+// Extract display text from a table cell's block-level content.
+// See renderTable-in-sync note below: joins top-level blocks with '\n' so
+// splitTextToSize wraps multi-paragraph cells correctly instead of producing
+// a concatenated "Retention Period30 days".
+const extractInlineText = (node: JSONContent): string => {
+  if (node.type === 'hardBreak') return '\n';
+  if (node.text) return node.text;
+  if (!node.content) return '';
+  return node.content.map((child) => extractInlineText(child)).join('');
+};
+
+const extractCellText = (cellContent: JSONContent[]): string =>
+  cellContent
+    .map((block) => extractInlineText(block))
+    .filter((s) => s.length > 0)
+    .join('\n');
+
 // Render a Tiptap table node as a jsPDF grid with borders and header fill.
 // NOTE: Keep in sync with apps/api/src/trust-portal/policy-pdf-renderer.service.ts renderTable
 const renderTable = (config: PDFConfig, tableNode: JSONContent) => {
@@ -338,8 +355,10 @@ const renderTable = (config: PDFConfig, tableNode: JSONContent) => {
       const isHeader = cell.type === 'tableHeader';
       const colspan = cell.attrs?.colspan ?? 1;
       const width = colWidth * colspan;
-      const rawText = cell.content ? extractTextFromContent(cell.content) : '';
+      const rawText = extractCellText(cell.content ?? []);
       const cleanText = cleanTextForPDF(rawText);
+      // splitTextToSize respects embedded \n, so multi-paragraph cells
+      // wrap into separate visual rows within the same cell.
       const lines = config.doc.splitTextToSize(
         cleanText || ' ',
         width - cellPadding * 2,

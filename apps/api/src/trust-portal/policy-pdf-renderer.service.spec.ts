@@ -455,6 +455,73 @@ describe('PolicyPdfRendererService', () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
+    it('separates text from multi-paragraph cells with newlines', () => {
+      // Regression test for the CS-221 review comment: cells with multiple
+      // block children (paragraphs, hardBreaks) used to be concatenated
+      // without a separator, so "Retention Period" + "30 days" rendered as
+      // "Retention Period30 days". extractCellText joins top-level blocks
+      // with \n so splitTextToSize wraps them correctly.
+      const result = service.renderPoliciesPdfBuffer(
+        [
+          {
+            name: 'Multi-paragraph Cell Policy',
+            content: {
+              type: 'doc',
+              content: [
+                {
+                  type: 'table',
+                  content: [
+                    {
+                      type: 'tableRow',
+                      content: [
+                        {
+                          type: 'tableCell',
+                          content: [
+                            {
+                              type: 'paragraph',
+                              content: [
+                                { type: 'text', text: 'Retention Period' },
+                              ],
+                            },
+                            {
+                              type: 'paragraph',
+                              content: [{ type: 'text', text: '30 days' }],
+                            },
+                          ],
+                        },
+                        {
+                          type: 'tableCell',
+                          content: [
+                            {
+                              type: 'paragraph',
+                              content: [
+                                { type: 'text', text: 'Line one' },
+                                { type: 'hardBreak' },
+                                { type: 'text', text: 'Line two' },
+                              ],
+                            },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+        'Test Org',
+      );
+
+      expect(result).toBeInstanceOf(Buffer);
+      expect(result.length).toBeGreaterThan(0);
+
+      // The concatenated-without-separator strings must NOT appear in the PDF.
+      const pdfText = result.toString('latin1');
+      expect(pdfText).not.toContain('Retention Period30 days');
+      expect(pdfText).not.toContain('Line oneLine two');
+    });
+
     it('handles empty tables without crashing', () => {
       const result = service.renderPoliciesPdfBuffer(
         [
