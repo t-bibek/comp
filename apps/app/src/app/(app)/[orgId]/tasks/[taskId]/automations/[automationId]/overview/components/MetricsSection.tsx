@@ -58,12 +58,15 @@ export function MetricsSection({
     if (next.getTime() <= now.getTime()) {
       next.setUTCDate(next.getUTCDate() + 1);
     }
+    // Include timeZoneName so the label is unambiguous alongside the UTC
+    // Schedule card — otherwise "Fri 12:00 PM" could be mistaken for UTC.
     setNextRunLabel(
       next.toLocaleString(undefined, {
         weekday: 'short',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
+        timeZoneName: 'short',
       }),
     );
   }, []);
