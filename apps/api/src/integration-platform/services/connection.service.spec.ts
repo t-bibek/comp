@@ -141,9 +141,6 @@ describe('ConnectionService', () => {
         {
           id: 'tsk_4',
           evidenceAutomations: [],
-          // Mock comes pre-sorted desc by createdAt to match the service's
-          // orderBy. Latest run for check_a is success; check_b is only one
-          // run and it's success.
           integrationCheckRuns: [
             {
               checkId: 'check_a',
@@ -170,6 +167,53 @@ describe('ConnectionService', () => {
         where: { id: 'tsk_4' },
         data: { status: 'done' },
       });
+    });
+
+    it('picks the latest run per checkId even when the input is reverse-sorted', async () => {
+      // Defensive test: if a future change breaks the query's orderBy,
+      // the logic must still pick the newest run per checkId.
+      findRuns.mockResolvedValue([{ taskId: 'tsk_reorder' }]);
+      findTasks.mockResolvedValue([
+        {
+          id: 'tsk_reorder',
+          evidenceAutomations: [],
+          // Oldest first — the opposite of the query's orderBy desc.
+          integrationCheckRuns: [
+            {
+              checkId: 'check_a',
+              status: 'failed',
+              createdAt: new Date('2026-04-01'),
+            },
+            {
+              checkId: 'check_a',
+              status: 'success',
+              createdAt: new Date('2026-04-05'),
+            },
+          ],
+        },
+      ]);
+
+      await service.disconnectConnection(CONNECTION_ID);
+
+      // Latest run for check_a (2026-04-05) is success → task should become
+      // done. If we naively picked the first-seen run, it would be failed
+      // and the task would stay at 'failed'.
+      expect(updateTask).toHaveBeenCalledWith({
+        where: { id: 'tsk_reorder' },
+        data: { status: 'done' },
+      });
+    });
+
+    it('swallows errors from the re-evaluation step so disconnect still succeeds', async () => {
+      // The primary disconnect has already succeeded by the time re-evaluation
+      // runs. A DB hiccup in the cleanup path must not surface to the caller.
+      findRuns.mockRejectedValue(new Error('transient DB failure'));
+
+      await expect(
+        service.disconnectConnection(CONNECTION_ID),
+      ).resolves.toEqual(
+        expect.objectContaining({ id: CONNECTION_ID, status: 'disconnected' }),
+      );
     });
 
     it('does not touch a task that is not currently failed', async () => {

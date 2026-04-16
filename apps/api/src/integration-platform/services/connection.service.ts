@@ -145,7 +145,16 @@ export class ConnectionService {
       activeCredentialVersionId: null,
     });
 
-    await this.reevaluateFailedTasksAfterDisconnect(connectionId);
+    // Best-effort task status cleanup. The primary disconnect already
+    // succeeded above; a failure here must not surface to the caller.
+    try {
+      await this.reevaluateFailedTasksAfterDisconnect(connectionId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to re-evaluate task statuses after disconnecting ${connectionId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     return connection;
   }
@@ -162,7 +171,15 @@ export class ConnectionService {
       errorMessage: null,
     });
 
-    await this.reevaluateFailedTasksAfterDisconnect(connectionId);
+    // Best-effort task status cleanup (see disconnectConnection for rationale).
+    try {
+      await this.reevaluateFailedTasksAfterDisconnect(connectionId);
+    } catch (error) {
+      this.logger.error(
+        `Failed to re-evaluate task statuses after deleting ${connectionId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
   }
 
   /**
@@ -249,10 +266,18 @@ export class ConnectionService {
     const hasApp = task.integrationCheckRuns.length > 0;
     let appPassing = false;
     if (hasApp) {
-      const latestByCheckId = new Map<string, { status: string }>();
+      // Order-independent latest-per-checkId selection. Matches the scheduler's
+      // getTargetStatus so behavior doesn't silently depend on whether the
+      // caller's query ordered runs by createdAt.
+      const latestByCheckId = new Map<
+        string,
+        { status: string; createdAt: Date }
+      >();
       for (const run of task.integrationCheckRuns) {
         const existing = latestByCheckId.get(run.checkId);
-        if (!existing) latestByCheckId.set(run.checkId, run);
+        if (!existing || run.createdAt > existing.createdAt) {
+          latestByCheckId.set(run.checkId, run);
+        }
       }
       appPassing = Array.from(latestByCheckId.values()).every(
         (r) => r.status === 'success',
