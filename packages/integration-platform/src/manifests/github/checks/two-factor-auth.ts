@@ -161,20 +161,12 @@ export const twoFactorAuthCheck: IntegrationCheck = {
         }
 
         // GitHub returns 422 when the caller is not an org owner for 2fa_* filters.
+        // Silently skip these orgs — the connected user belongs to them but isn't an owner,
+        // so we can't check 2FA and shouldn't surface a noisy finding for an unrelated org.
         if (isOwnerPermissionError(error, errorMsg)) {
-          ctx.warn(
-            `Cannot check 2FA for ${org.login}: the account must be an organization owner to use the 2FA filter.`,
+          ctx.log(
+            `Skipping ${org.login}: not an org owner, cannot use 2FA filter. This is expected for orgs the user belongs to but does not administer.`,
           );
-          ctx.fail({
-            title: `Cannot verify 2FA for ${org.login}`,
-            description:
-              'Insufficient permissions to check 2FA status. The `filter=2fa_disabled` parameter is only available to organization owners on GitHub.',
-            resourceType: 'organization',
-            resourceId: org.login,
-            severity: 'medium',
-            remediation:
-              'Reconnect the GitHub integration with an account that is an owner of this organization.',
-          });
           continue;
         }
 
