@@ -1,3 +1,10 @@
+## [3.23.1](https://github.com/trycompai/comp/compare/v3.23.0...v3.23.1) (2026-04-16)
+
+
+### Bug Fixes
+
+* **vendor:** harden firecrawl trust center crawling ([08a3786](https://github.com/trycompai/comp/commit/08a3786049a45617df2b98c3b88ca1ba6e712ce1))
+
 # [3.23.0](https://github.com/trycompai/comp/compare/v3.22.4...v3.23.0) (2026-04-16)
 
 
