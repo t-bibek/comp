@@ -1,5 +1,4 @@
 import { serverApi } from '@/lib/api-server';
-import { Breadcrumb, PageHeader, PageLayout } from '@trycompai/design-system';
 import type {
   Control,
   FrameworkEditorFramework,
@@ -9,10 +8,8 @@ import type {
   RequirementMap,
   Task,
 } from '@db';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { SingleControl } from '@/app/(app)/[orgId]/controls/[controlId]/components/SingleControl';
-import type { ControlProgressResponse } from '@/app/(app)/[orgId]/controls/[controlId]/data/getOrganizationControlProgress';
+import { FrameworkControlShell } from './components/FrameworkControlShell';
 
 type ControlDetail = Control & {
   policies: Policy[];
@@ -23,7 +20,6 @@ type ControlDetail = Control & {
     };
     requirement: FrameworkEditorRequirement;
   })[];
-  progress: ControlProgressResponse;
 };
 
 interface PageProps {
@@ -48,55 +44,35 @@ export default async function FrameworkControlPage({ params }: PageProps) {
 
   const control = controlRes.data;
   const frameworkName = frameworkRes.data?.framework?.name ?? 'Framework';
-  const controlProgress: ControlProgressResponse = control.progress ?? {
-    total: 0,
-    completed: 0,
-    progress: 0,
-    byType: {},
-  };
 
   const matchedRequirement = control.requirementsMapped?.find(
     (rm) => rm.frameworkInstanceId === frameworkInstanceId,
   );
-  const requirementName = matchedRequirement?.requirement?.name;
+  const requirementLabel =
+    matchedRequirement?.requirement?.identifier?.trim() ||
+    matchedRequirement?.requirement?.name;
   const requirementId = matchedRequirement?.requirement?.id;
   const requirementHref = requirementId
     ? `/${orgId}/frameworks/${frameworkInstanceId}/requirements/${requirementId}`
     : undefined;
 
-  const breadcrumbItems = [
-    {
-      label: 'Frameworks',
-      href: `/${orgId}/frameworks`,
-      props: { render: <Link href={`/${orgId}/frameworks`} /> },
-    },
+  const breadcrumbs = [
+    { label: 'Frameworks', href: `/${orgId}/frameworks` },
     {
       label: frameworkName,
       href: `/${orgId}/frameworks/${frameworkInstanceId}`,
-      props: { render: <Link href={`/${orgId}/frameworks/${frameworkInstanceId}`} /> },
     },
-    ...(requirementName && requirementHref
-      ? [
-          {
-            label: requirementName,
-            href: requirementHref,
-            props: { render: <Link href={requirementHref} /> },
-          },
-        ]
+    ...(requirementLabel && requirementHref
+      ? [{ label: requirementLabel, href: requirementHref }]
       : []),
     { label: control.name, isCurrent: true },
   ];
 
   return (
-    <PageLayout>
-      <Breadcrumb items={breadcrumbItems} />
-      <PageHeader title={control.name} />
-      <SingleControl
-        control={control}
-        controlProgress={controlProgress}
-        relatedPolicies={control.policies}
-        relatedTasks={control.tasks}
-      />
-    </PageLayout>
+    <FrameworkControlShell
+      orgId={orgId}
+      control={control}
+      breadcrumbs={breadcrumbs}
+    />
   );
 }

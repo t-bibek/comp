@@ -98,7 +98,8 @@ export function FrameworkRequirements({
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(lowerSearch) ||
-        item.identifier?.toLowerCase().includes(lowerSearch),
+        item.identifier?.toLowerCase().includes(lowerSearch) ||
+        item.description?.toLowerCase().includes(lowerSearch),
     );
   }, [items, searchTerm]);
 
@@ -124,7 +125,9 @@ export function FrameworkRequirements({
       <Table variant="bordered">
         <TableHeader>
           <TableRow>
+            <TableHead>Identifier</TableHead>
             <TableHead>Name</TableHead>
+            <TableHead>Description</TableHead>
             <TableHead>Controls</TableHead>
             <TableHead>Compliance</TableHead>
             <TableHead>Status</TableHead>
@@ -133,7 +136,7 @@ export function FrameworkRequirements({
         <TableBody>
           {filteredItems.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4}>
+              <TableCell colSpan={6}>
                 <Text size="sm" variant="muted">
                   No requirements found.
                 </Text>
@@ -142,6 +145,7 @@ export function FrameworkRequirements({
           ) : (
             filteredItems.map((item) => {
               const status = getRequirementStatus(item.satisfiedControlsCount, item.mappedControlsCount);
+              const identifier = item.identifier?.trim();
 
               return (
                 <TableRow
@@ -158,18 +162,23 @@ export function FrameworkRequirements({
                   style={{ cursor: 'pointer' }}
                 >
                   <TableCell>
-                    {item.identifier?.trim() ? (
-                      <span className="font-medium" title={item.name}>
-                        {item.identifier}
-                      </span>
-                    ) : (
-                      <span
-                        className="line-clamp-2 block max-w-[420px]"
-                        title={item.name}
-                      >
-                        {item.name}
-                      </span>
-                    )}
+                    <span className="text-sm">{identifier || '—'}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className="block max-w-[280px] truncate text-sm"
+                      title={item.name}
+                    >
+                      {item.name}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className="block max-w-[420px] truncate text-sm"
+                      title={item.description || ''}
+                    >
+                      {item.description || '—'}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="tabular-nums">

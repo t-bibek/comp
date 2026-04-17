@@ -225,27 +225,31 @@ export function FrameworksTable({
                           alt={fw.framework.name}
                           width={24}
                           height={24}
-                          className="rounded-full"
+                          className="rounded-full shrink-0"
                           unoptimized
                         />
                       ) : (
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted">
+                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted">
                           <span className="text-[10px] text-muted-foreground">
                             {fw.framework.name.charAt(0)}
                           </span>
                         </div>
                       )}
-                      <Text size="sm" weight="medium">
+                      <span
+                        className="block max-w-[260px] truncate text-sm font-medium"
+                        title={fw.framework.name}
+                      >
                         {fw.framework.name}
-                      </Text>
+                      </span>
                     </HStack>
                   </TableCell>
                   <TableCell>
-                    <div className="line-clamp-2">
-                      <Text size="sm" variant="muted">
-                        {fw.framework.description?.trim() || '—'}
-                      </Text>
-                    </div>
+                    <span
+                      className="block max-w-[420px] truncate text-sm"
+                      title={fw.framework.description?.trim() || ''}
+                    >
+                      {fw.framework.description?.trim() || '—'}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3 min-w-[120px]">

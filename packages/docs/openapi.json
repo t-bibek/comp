@@ -19895,6 +19895,123 @@
         ]
       }
     },
+    "/v1/controls/{id}/policies/link": {
+      "post": {
+        "operationId": "ControlsController_linkPolicies_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPoliciesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link existing policies to a control",
+        "tags": [
+          "Controls"
+        ]
+      }
+    },
+    "/v1/controls/{id}/tasks/link": {
+      "post": {
+        "operationId": "ControlsController_linkTasks_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkTasksDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link existing tasks to a control",
+        "tags": [
+          "Controls"
+        ]
+      }
+    },
+    "/v1/controls/{id}/requirements/link": {
+      "post": {
+        "operationId": "ControlsController_linkRequirements_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRequirementsToControlDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link existing requirements to a control",
+        "tags": [
+          "Controls"
+        ]
+      }
+    },
     "/v1/email/unsubscribe": {
       "post": {
         "operationId": "UnsubscribeController_unsubscribe_v1",
@@ -24997,6 +25114,68 @@
         "required": [
           "name",
           "description"
+        ]
+      },
+      "LinkPoliciesDto": {
+        "type": "object",
+        "properties": {
+          "policyIds": {
+            "description": "Policy IDs to link to the control",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "policyIds"
+        ]
+      },
+      "LinkTasksDto": {
+        "type": "object",
+        "properties": {
+          "taskIds": {
+            "description": "Task IDs to link to the control",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "taskIds"
+        ]
+      },
+      "LinkRequirementMappingDto": {
+        "type": "object",
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "description": "Requirement ID"
+          },
+          "frameworkInstanceId": {
+            "type": "string",
+            "description": "Framework instance ID"
+          }
+        },
+        "required": [
+          "requirementId",
+          "frameworkInstanceId"
+        ]
+      },
+      "LinkRequirementsToControlDto": {
+        "type": "object",
+        "properties": {
+          "requirements": {
+            "description": "Requirement + framework instance pairs to link",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkRequirementMappingDto"
+            }
+          }
+        },
+        "required": [
+          "requirements"
         ]
       },
       "CreatePenetrationTestDto": {

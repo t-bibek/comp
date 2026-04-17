@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { db, Prisma } from '@db';
 import { CreateControlDto } from './dto/create-control.dto';
 
@@ -191,6 +195,115 @@ export class ControlsService {
     }
 
     return control;
+  }
+
+  private async ensureControl(controlId: string, organizationId: string) {
+    const control = await db.control.findUnique({
+      where: { id: controlId, organizationId },
+      select: { id: true },
+    });
+    if (!control) {
+      throw new NotFoundException('Control not found');
+    }
+    return control;
+  }
+
+  async linkPolicies(
+    controlId: string,
+    organizationId: string,
+    policyIds: string[],
+  ) {
+    await this.ensureControl(controlId, organizationId);
+
+    const policies = await db.policy.findMany({
+      where: { id: { in: policyIds }, organizationId },
+      select: { id: true },
+    });
+    if (policies.length === 0) {
+      throw new BadRequestException('No valid policies to link');
+    }
+
+    await db.control.update({
+      where: { id: controlId },
+      data: { policies: { connect: policies.map((p) => ({ id: p.id })) } },
+    });
+
+    return { count: policies.length };
+  }
+
+  async linkTasks(
+    controlId: string,
+    organizationId: string,
+    taskIds: string[],
+  ) {
+    await this.ensureControl(controlId, organizationId);
+
+    const tasks = await db.task.findMany({
+      where: { id: { in: taskIds }, organizationId },
+      select: { id: true },
+    });
+    if (tasks.length === 0) {
+      throw new BadRequestException('No valid tasks to link');
+    }
+
+    await db.control.update({
+      where: { id: controlId },
+      data: { tasks: { connect: tasks.map((t) => ({ id: t.id })) } },
+    });
+
+    return { count: tasks.length };
+  }
+
+  async linkRequirements(
+    controlId: string,
+    organizationId: string,
+    mappings: { requirementId: string; frameworkInstanceId: string }[],
+  ) {
+    await this.ensureControl(controlId, organizationId);
+
+    const frameworkInstanceIds = Array.from(
+      new Set(mappings.map((m) => m.frameworkInstanceId)),
+    );
+    const instances = await db.frameworkInstance.findMany({
+      where: { id: { in: frameworkInstanceIds }, organizationId },
+      select: { id: true, frameworkId: true },
+    });
+    const instanceByfId = new Map(instances.map((i) => [i.id, i.frameworkId]));
+
+    const requirementIds = Array.from(
+      new Set(mappings.map((m) => m.requirementId)),
+    );
+    const requirements = await db.frameworkEditorRequirement.findMany({
+      where: {
+        id: { in: requirementIds },
+        OR: [{ organizationId: null }, { organizationId }],
+      },
+      select: { id: true, frameworkId: true },
+    });
+    const reqFrameworkById = new Map(
+      requirements.map((r) => [r.id, r.frameworkId]),
+    );
+
+    const validMappings = mappings.filter((m) => {
+      const instanceFwId = instanceByfId.get(m.frameworkInstanceId);
+      const reqFwId = reqFrameworkById.get(m.requirementId);
+      return Boolean(instanceFwId) && instanceFwId === reqFwId;
+    });
+
+    if (validMappings.length === 0) {
+      throw new BadRequestException('No valid requirements to link');
+    }
+
+    await db.requirementMap.createMany({
+      data: validMappings.map((m) => ({
+        controlId,
+        requirementId: m.requirementId,
+        frameworkInstanceId: m.frameworkInstanceId,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { count: validMappings.length };
   }
 
   async delete(controlId: string, organizationId: string) {

@@ -29,6 +29,15 @@ export default async function RequirementPage({ params }: PageProps) {
     ),
   ]);
 
+  console.log('[RequirementPage]', {
+    frameworkInstanceId,
+    requirementKey,
+    frameworkStatus: frameworkRes.status,
+    frameworkError: frameworkRes.error,
+    requirementStatus: requirementRes.status,
+    requirementError: requirementRes.error,
+  });
+
   if (!frameworkRes.data || !requirementRes.data) {
     redirect(`/${organizationId}/frameworks/${frameworkInstanceId}`);
   }
