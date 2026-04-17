@@ -27,7 +27,7 @@ export const updatePolicy = schemaTask({
         version: z.string(),
         description: z.string(),
         visible: z.boolean(),
-        organizationId: z.string().nullable(),
+        organizationId: z.string().nullable().default(null),
         createdAt: z.date(),
         updatedAt: z.date(),
       }),
