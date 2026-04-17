@@ -417,7 +417,7 @@ export class ControlsService {
       throw new BadRequestException('No valid requirements to link');
     }
 
-    await db.requirementMap.createMany({
+    const result = await db.requirementMap.createMany({
       data: validMappings.map((m) => ({
         controlId,
         frameworkInstanceId: m.frameworkInstanceId,
@@ -427,7 +427,7 @@ export class ControlsService {
       skipDuplicates: true,
     });
 
-    return { count: validMappings.length };
+    return { count: result.count };
   }
 
   async linkDocumentTypes(
@@ -436,11 +436,11 @@ export class ControlsService {
     formTypes: EvidenceFormType[],
   ) {
     await this.ensureControl(controlId, organizationId);
-    await db.controlDocumentType.createMany({
+    const result = await db.controlDocumentType.createMany({
       data: formTypes.map((formType) => ({ controlId, formType })),
       skipDuplicates: true,
     });
-    return { count: formTypes.length };
+    return { count: result.count };
   }
 
   async unlinkDocumentType(

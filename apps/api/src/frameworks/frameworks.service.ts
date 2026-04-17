@@ -395,7 +395,7 @@ export class FrameworksService {
       throw new BadRequestException('No valid controls to link');
     }
 
-    await db.requirementMap.createMany({
+    const result = await db.requirementMap.createMany({
       data: controls.map((c) => ({
         controlId: c.id,
         frameworkInstanceId,
@@ -406,7 +406,7 @@ export class FrameworksService {
       skipDuplicates: true,
     });
 
-    return { count: controls.length };
+    return { count: result.count };
   }
 
   async getScores(organizationId: string, userId?: string) {
