@@ -299,11 +299,12 @@ export class ControlsService {
     organizationId: string,
   ): Promise<string[]> {
     if (!policyIds || policyIds.length === 0) return [];
+    const uniqueIds = Array.from(new Set(policyIds));
     const policies = await db.policy.findMany({
-      where: { id: { in: policyIds }, organizationId },
+      where: { id: { in: uniqueIds }, organizationId },
       select: { id: true },
     });
-    if (policies.length !== policyIds.length) {
+    if (policies.length !== uniqueIds.length) {
       throw new BadRequestException('One or more policies are invalid');
     }
     return policies.map((p) => p.id);
@@ -314,11 +315,12 @@ export class ControlsService {
     organizationId: string,
   ): Promise<string[]> {
     if (!taskIds || taskIds.length === 0) return [];
+    const uniqueIds = Array.from(new Set(taskIds));
     const tasks = await db.task.findMany({
-      where: { id: { in: taskIds }, organizationId },
+      where: { id: { in: uniqueIds }, organizationId },
       select: { id: true },
     });
-    if (tasks.length !== taskIds.length) {
+    if (tasks.length !== uniqueIds.length) {
       throw new BadRequestException('One or more tasks are invalid');
     }
     return tasks.map((t) => t.id);
