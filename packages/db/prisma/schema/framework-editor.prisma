@@ -18,6 +18,10 @@ model FrameworkEditorFramework {
   description String
   visible     Boolean @default(false)
 
+  // Null = platform built-in, set = org-custom framework
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   requirements       FrameworkEditorRequirement[]
   frameworkInstances FrameworkInstance[]
   soaConfigurations  SOAFrameworkConfiguration[] // Multiple SOA config versions per framework
@@ -26,6 +30,8 @@ model FrameworkEditorFramework {
   // Dates
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([organizationId])
 }
 
 model FrameworkEditorRequirement {
@@ -37,12 +43,19 @@ model FrameworkEditorRequirement {
   identifier  String @default("") // Unique identifier for the requirement, e.g., "cc1-1"
   description String
 
+  // Null = platform built-in, set = org-custom requirement
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
   controlTemplates FrameworkEditorControlTemplate[]
   requirementMaps  RequirementMap[]
 
   // Dates
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([organizationId])
+  @@index([frameworkId])
 }
 
 model FrameworkEditorPolicyTemplate {

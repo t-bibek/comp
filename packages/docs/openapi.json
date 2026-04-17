@@ -19515,6 +19515,161 @@
         ]
       }
     },
+    "/v1/frameworks/custom": {
+      "post": {
+        "operationId": "FrameworksController_createCustom_v1",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomFrameworkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create a custom framework for this organization",
+        "tags": [
+          "Frameworks"
+        ]
+      }
+    },
+    "/v1/frameworks/{id}/requirements": {
+      "post": {
+        "operationId": "FrameworksController_createRequirement_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomRequirementDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add a custom requirement to a framework instance",
+        "tags": [
+          "Frameworks"
+        ]
+      }
+    },
+    "/v1/frameworks/{id}/requirements/link": {
+      "post": {
+        "operationId": "FrameworksController_linkRequirements_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRequirementsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link (clone) existing requirements from another framework into this one",
+        "tags": [
+          "Frameworks"
+        ]
+      }
+    },
+    "/v1/frameworks/{id}/requirements/{requirementKey}/controls/link": {
+      "post": {
+        "operationId": "FrameworksController_linkControls_v1",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requirementKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkControlsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Link existing org controls to a requirement",
+        "tags": [
+          "Frameworks"
+        ]
+      }
+    },
     "/v1/audit-logs": {
       "get": {
         "operationId": "AuditLogController_getAuditLogs_v1",
@@ -24708,6 +24863,83 @@
         },
         "required": [
           "frameworkIds"
+        ]
+      },
+      "CreateCustomFrameworkDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Framework name",
+            "example": "Internal Controls"
+          },
+          "description": {
+            "type": "string",
+            "description": "Framework description"
+          },
+          "version": {
+            "type": "string",
+            "description": "Version",
+            "example": "1.0"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ]
+      },
+      "CreateCustomRequirementDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Requirement name",
+            "example": "Access Review"
+          },
+          "identifier": {
+            "type": "string",
+            "description": "Identifier",
+            "example": "10.3"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description"
+          }
+        },
+        "required": [
+          "name",
+          "identifier",
+          "description"
+        ]
+      },
+      "LinkRequirementsDto": {
+        "type": "object",
+        "properties": {
+          "requirementIds": {
+            "description": "IDs of existing FrameworkEditorRequirement rows to clone into this framework",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "requirementIds"
+        ]
+      },
+      "LinkControlsDto": {
+        "type": "object",
+        "properties": {
+          "controlIds": {
+            "description": "Existing org Control IDs to map to the requirement on this framework instance",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "controlIds"
         ]
       },
       "RequirementMappingDto": {

@@ -98,7 +98,7 @@ export function FrameworkRequirements({
     return items.filter(
       (item) =>
         item.name.toLowerCase().includes(lowerSearch) ||
-        item.description?.toLowerCase().includes(lowerSearch),
+        item.identifier?.toLowerCase().includes(lowerSearch),
     );
   }, [items, searchTerm]);
 
@@ -106,15 +106,9 @@ export function FrameworkRequirements({
     router.push(`/${orgId}/frameworks/${frameworkInstanceId}/requirements/${requirementId}`);
   };
 
-  if (!items?.length) {
-    return null;
-  }
-
   return (
     <div className="space-y-4">
-      <Heading level="2">
-        Requirements ({filteredItems.length})
-      </Heading>
+      <Heading level="2">Requirements ({filteredItems.length})</Heading>
       <div className="w-full max-w-sm">
         <InputGroup>
           <InputGroupAddon>
@@ -131,7 +125,6 @@ export function FrameworkRequirements({
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
-            <TableHead>Description</TableHead>
             <TableHead>Controls</TableHead>
             <TableHead>Compliance</TableHead>
             <TableHead>Status</TableHead>
@@ -140,7 +133,7 @@ export function FrameworkRequirements({
         <TableBody>
           {filteredItems.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5}>
+              <TableCell colSpan={4}>
                 <Text size="sm" variant="muted">
                   No requirements found.
                 </Text>
@@ -165,14 +158,18 @@ export function FrameworkRequirements({
                   style={{ cursor: 'pointer' }}
                 >
                   <TableCell>
-                    <span className="line-clamp-2">{item.name}</span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="line-clamp-2">
-                      <Text size="sm" variant="muted">
-                        {item.description}
-                      </Text>
-                    </div>
+                    {item.identifier?.trim() ? (
+                      <span className="font-medium" title={item.name}>
+                        {item.identifier}
+                      </span>
+                    ) : (
+                      <span
+                        className="line-clamp-2 block max-w-[420px]"
+                        title={item.name}
+                      >
+                        {item.name}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="tabular-nums">

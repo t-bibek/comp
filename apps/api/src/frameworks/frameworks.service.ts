@@ -169,12 +169,149 @@ export class FrameworksService {
     };
   }
 
-  async findAvailable() {
+  async findAvailable(organizationId?: string) {
     const frameworks = await db.frameworkEditorFramework.findMany({
-      where: { visible: true },
+      where: {
+        OR: [
+          { visible: true, organizationId: null },
+          ...(organizationId ? [{ organizationId }] : []),
+        ],
+      },
       include: { requirements: true },
     });
     return frameworks;
+  }
+
+  async createCustom(
+    organizationId: string,
+    input: { name: string; description: string; version?: string },
+  ) {
+    return db.$transaction(async (tx) => {
+      const framework = await tx.frameworkEditorFramework.create({
+        data: {
+          name: input.name,
+          description: input.description,
+          version: input.version ?? '1.0',
+          visible: false,
+          organizationId,
+        },
+      });
+
+      const instance = await tx.frameworkInstance.create({
+        data: {
+          organizationId,
+          frameworkId: framework.id,
+        },
+        include: { framework: true },
+      });
+
+      return instance;
+    });
+  }
+
+  async createRequirement(
+    frameworkInstanceId: string,
+    organizationId: string,
+    input: { name: string; identifier: string; description: string },
+  ) {
+    const fi = await db.frameworkInstance.findUnique({
+      where: { id: frameworkInstanceId, organizationId },
+      select: { frameworkId: true },
+    });
+    if (!fi) {
+      throw new NotFoundException('Framework instance not found');
+    }
+
+    return db.frameworkEditorRequirement.create({
+      data: {
+        name: input.name,
+        identifier: input.identifier,
+        description: input.description,
+        frameworkId: fi.frameworkId,
+        organizationId,
+      },
+    });
+  }
+
+  async linkRequirements(
+    frameworkInstanceId: string,
+    organizationId: string,
+    requirementIds: string[],
+  ) {
+    const fi = await db.frameworkInstance.findUnique({
+      where: { id: frameworkInstanceId, organizationId },
+      select: { frameworkId: true },
+    });
+    if (!fi) {
+      throw new NotFoundException('Framework instance not found');
+    }
+
+    const sources = await db.frameworkEditorRequirement.findMany({
+      where: {
+        id: { in: requirementIds },
+        OR: [{ organizationId: null }, { organizationId }],
+      },
+    });
+
+    if (sources.length === 0) {
+      throw new BadRequestException('No valid requirements to link');
+    }
+
+    const created = await db.frameworkEditorRequirement.createManyAndReturn({
+      data: sources.map((r) => ({
+        name: r.name,
+        identifier: r.identifier,
+        description: r.description,
+        frameworkId: fi.frameworkId,
+        organizationId,
+      })),
+    });
+
+    return { count: created.length, requirements: created };
+  }
+
+  async linkControlsToRequirement(
+    frameworkInstanceId: string,
+    requirementKey: string,
+    organizationId: string,
+    controlIds: string[],
+  ) {
+    const fi = await db.frameworkInstance.findUnique({
+      where: { id: frameworkInstanceId, organizationId },
+      select: { id: true, frameworkId: true },
+    });
+    if (!fi) {
+      throw new NotFoundException('Framework instance not found');
+    }
+
+    const requirement = await db.frameworkEditorRequirement.findFirst({
+      where: {
+        id: requirementKey,
+        frameworkId: fi.frameworkId,
+      },
+    });
+    if (!requirement) {
+      throw new NotFoundException('Requirement not found');
+    }
+
+    const controls = await db.control.findMany({
+      where: { id: { in: controlIds }, organizationId },
+      select: { id: true },
+    });
+    if (controls.length === 0) {
+      throw new BadRequestException('No valid controls to link');
+    }
+
+    await db.requirementMap.createMany({
+      data: controls.map((c) => ({
+        controlId: c.id,
+        requirementId: requirementKey,
+        frameworkInstanceId,
+      })),
+      skipDuplicates: true,
+    });
+
+    return { count: controls.length };
   }
 
   async getScores(organizationId: string, userId?: string) {
