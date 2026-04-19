@@ -9,6 +9,7 @@ import {
   db,
   EvidenceFormType as DbEvidenceFormType,
   FindingArea,
+  FindingSeverity,
   FindingStatus,
   FindingType,
 } from '@db';
@@ -101,6 +102,7 @@ export class FindingsService {
     organizationId: string,
     filters: {
       status?: FindingStatus;
+      severity?: FindingSeverity;
       taskId?: string;
       evidenceSubmissionId?: string;
       evidenceFormType?: DbEvidenceFormType;
@@ -116,6 +118,7 @@ export class FindingsService {
       where: {
         organizationId,
         ...(filters.status && { status: filters.status }),
+        ...(filters.severity && { severity: filters.severity }),
         ...(filters.taskId && { taskId: filters.taskId }),
         ...(filters.evidenceSubmissionId && {
           evidenceSubmissionId: filters.evidenceSubmissionId,

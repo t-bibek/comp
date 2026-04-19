@@ -13,6 +13,7 @@ function capitalize(s: string) {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 import { usePermissions } from '@/hooks/use-permissions';
+import { useSession } from '@/utils/auth-client';
 import { FindingSeverity, FindingStatus } from '@db';
 import {
   AlertDialog,
@@ -53,12 +54,32 @@ interface FindingDetailSheetProps {
   onDeleted?: () => void;
 }
 
-const STATUS_OPTIONS: FindingStatus[] = [
-  FindingStatus.open,
-  FindingStatus.ready_for_review,
-  FindingStatus.needs_revision,
-  FindingStatus.closed,
-];
+/**
+ * Mirror of the API's status-transition rules in
+ * `findings.service.ts#update`. Showing options the backend forbids leads to
+ * predictable 403s on save, so filter to what the current user can actually
+ * set. The current status is always preserved so the dropdown can render its
+ * own value even if the user can no longer set it.
+ */
+function allowedStatusOptions({
+  current,
+  isAuditor,
+  isPlatformAdmin,
+}: {
+  current: FindingStatus;
+  isAuditor: boolean;
+  isPlatformAdmin: boolean;
+}): FindingStatus[] {
+  const canSetRestricted = isAuditor || isPlatformAdmin;
+  const canSetReadyForReview = !isAuditor || isPlatformAdmin;
+  const options: FindingStatus[] = [FindingStatus.open];
+  if (canSetReadyForReview) options.push(FindingStatus.ready_for_review);
+  if (canSetRestricted) {
+    options.push(FindingStatus.needs_revision, FindingStatus.closed);
+  }
+  if (!options.includes(current)) options.push(current);
+  return options;
+}
 
 const SEVERITY_OPTIONS: FindingSeverity[] = [
   FindingSeverity.low,
@@ -135,6 +156,7 @@ export function FindingDetailSheet({
   onDeleted,
 }: FindingDetailSheetProps) {
   const { hasPermission, permissions } = usePermissions();
+  const { data: session } = useSession();
   const canUpdate = hasPermission('finding', 'update');
   const canDelete = hasPermission('finding', 'delete');
   // Only auditors can rewrite a finding's content; owners/admins can still
@@ -142,6 +164,7 @@ export function FindingDetailSheet({
   const isAuditor =
     Array.isArray(permissions?.finding) &&
     permissions.finding.includes('create');
+  const isPlatformAdmin = session?.user?.role === 'admin';
   const canEditContent = canUpdate && isAuditor;
   const { updateFinding, deleteFinding } = useFindingActions();
   const { data: historyData } = useFindingHistory(finding?.id ?? null);
@@ -326,7 +349,11 @@ export function FindingDetailSheet({
                     {FINDING_STATUS_CONFIG[status].label}
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map((s) => (
+                    {allowedStatusOptions({
+                      current: status,
+                      isAuditor,
+                      isPlatformAdmin,
+                    }).map((s) => (
                       <SelectItem key={s} value={s}>
                         {FINDING_STATUS_CONFIG[s].label}
                       </SelectItem>

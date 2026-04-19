@@ -229,7 +229,10 @@ export function FindingsTab({ orgId }: { orgId: string }) {
           task: `/v1/admin/organizations/${orgId}/tasks`,
           policy: `/v1/admin/organizations/${orgId}/policies`,
           vendor: `/v1/admin/organizations/${orgId}/vendors`,
-          evidenceFormType: `/v1/admin/organizations/${orgId}/evidence-forms`,
+          // Document-type definitions are static metadata, not org-scoped.
+          // The admin `/evidence-forms` endpoint returns a status map keyed
+          // by form type, which `extractOptions` can't render as picker
+          // options — fall back to the default static endpoint.
         }}
         disabledTargetKinds={['risk', 'member', 'device']}
         onSuccess={() => {

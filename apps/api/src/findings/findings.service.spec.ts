@@ -44,7 +44,7 @@ jest.mock('@db', () => ({
 import { FindingsService } from './findings.service';
 
 describe('FindingsService.create (target validator)', () => {
-  const auditService = { logFindingCreated: jest.fn() };
+  const auditService = {};
   const notifier = { notifyFindingCreated: jest.fn() };
   const svc = new FindingsService(
     auditService as never,

@@ -22,7 +22,13 @@ import {
   ApiTags,
   ApiSecurity,
 } from '@nestjs/swagger';
-import { db, EvidenceFormType as DbEvidenceFormType, FindingArea, FindingStatus } from '@db';
+import {
+  db,
+  EvidenceFormType as DbEvidenceFormType,
+  FindingArea,
+  FindingSeverity,
+  FindingStatus,
+} from '@db';
 import { HybridAuthGuard } from '../auth/hybrid-auth.guard';
 import { PermissionGuard } from '../auth/permission.guard';
 import { RequirePermission } from '../auth/require-permission.decorator';
@@ -51,6 +57,7 @@ export class FindingsController {
   @RequirePermission('finding', 'read')
   @ApiOperation({ summary: 'List findings for organization (optionally filtered)' })
   @ApiQuery({ name: 'status', required: false, enum: FindingStatus })
+  @ApiQuery({ name: 'severity', required: false, enum: FindingSeverity })
   @ApiQuery({ name: 'area', required: false, enum: FindingArea })
   @ApiQuery({ name: 'taskId', required: false })
   @ApiQuery({ name: 'evidenceSubmissionId', required: false })
@@ -67,6 +74,7 @@ export class FindingsController {
   async listFindings(
     @AuthContext() authContext: AuthContextType,
     @Query('status') status?: string,
+    @Query('severity') severity?: string,
     @Query('area') area?: string,
     @Query('taskId') taskId?: string,
     @Query('evidenceSubmissionId') evidenceSubmissionId?: string,
@@ -85,6 +93,18 @@ export class FindingsController {
         );
       }
       validatedStatus = status as FindingStatus;
+    }
+
+    let validatedSeverity: FindingSeverity | undefined;
+    if (severity) {
+      if (
+        !Object.values(FindingSeverity).includes(severity as FindingSeverity)
+      ) {
+        throw new BadRequestException(
+          `Invalid severity. Must be one of: ${Object.values(FindingSeverity).join(', ')}`,
+        );
+      }
+      validatedSeverity = severity as FindingSeverity;
     }
 
     let validatedArea: FindingArea | undefined;
@@ -112,6 +132,7 @@ export class FindingsController {
       authContext.organizationId,
       {
         status: validatedStatus,
+        severity: validatedSeverity,
         area: validatedArea,
         taskId,
         evidenceSubmissionId,

@@ -13717,7 +13717,11 @@
               "enum": [
                 "people",
                 "documents",
-                "compliance"
+                "compliance",
+                "risks",
+                "vendors",
+                "policies",
+                "other"
               ],
               "type": "string"
             }
@@ -23731,7 +23735,11 @@
             "enum": [
               "people",
               "documents",
-              "compliance"
+              "compliance",
+              "risks",
+              "vendors",
+              "policies",
+              "other"
             ]
           },
           "type": {

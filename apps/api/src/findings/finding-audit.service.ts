@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { db, FindingArea, FindingStatus, FindingType } from '@db';
+import { db, FindingStatus, FindingType } from '@db';
 
 export interface FindingAuditParams {
   findingId: string;
@@ -8,57 +8,9 @@ export interface FindingAuditParams {
   memberId: string | null;
 }
 
-type TargetKind =
-  | 'task'
-  | 'evidenceSubmission'
-  | 'evidenceFormType'
-  | 'policy'
-  | 'vendor'
-  | 'risk'
-  | 'member'
-  | 'device'
-  | 'area';
-
 @Injectable()
 export class FindingAuditService {
   private readonly logger = new Logger(FindingAuditService.name);
-
-  async logFindingCreated(
-    params: FindingAuditParams & {
-      targetKind: TargetKind;
-      targetId: string | null;
-      targetLabel?: string | null;
-      area?: FindingArea | null;
-      content: string;
-      type: FindingType;
-    },
-  ): Promise<void> {
-    try {
-      await db.auditLog.create({
-        data: {
-          organizationId: params.organizationId,
-          userId: params.userId,
-          memberId: params.memberId,
-          entityType: 'finding',
-          entityId: params.findingId,
-          description: 'created this finding',
-          data: {
-            action: 'created',
-            findingId: params.findingId,
-            targetKind: params.targetKind,
-            targetId: params.targetId,
-            targetLabel: params.targetLabel ?? null,
-            area: params.area ?? null,
-            content: params.content,
-            type: params.type,
-            status: FindingStatus.open,
-          },
-        },
-      });
-    } catch (error) {
-      this.logger.error('Failed to log finding creation:', error);
-    }
-  }
 
   async logFindingStatusChanged(
     params: FindingAuditParams & {
