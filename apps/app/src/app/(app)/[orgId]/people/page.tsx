@@ -4,8 +4,9 @@ import { db } from '@db/server';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { PeopleFindingsUnifiedList } from './all/components/PeopleFindingsUnifiedList';
+import { Suspense } from 'react';
 import { TeamMembers } from './all/components/TeamMembers';
+import { TeamMembersSkeleton } from './all/components/TeamMembersSkeleton';
 import { PeoplePageTabs } from './components/PeoplePageTabs';
 import { EmployeesOverview } from './dashboard/components/EmployeesOverview';
 import { DevicesTabContent } from './devices/components/DevicesTabContent';
@@ -33,7 +34,6 @@ export default async function PeoplePage({ params }: { params: Promise<{ orgId: 
   const isAuditor = currentUserRoles.includes('auditor');
   const canInviteUsers = canManageMembers || isAuditor;
   const isCurrentUserOwner = currentUserRoles.includes('owner');
-  const isPlatformAdmin = session.user.role === 'admin';
 
   // Only fetch what page-level logic needs: the set of members with compliance
   // obligations. Used to (a) decide whether the Tasks tab shows, and (b) tell
@@ -56,25 +56,20 @@ export default async function PeoplePage({ params }: { params: Promise<{ orgId: 
   return (
     <PeoplePageTabs
       peopleContent={
-        <TeamMembers
-          canManageMembers={canManageMembers}
-          canInviteUsers={canInviteUsers}
-          isCurrentUserOwner={isCurrentUserOwner}
-          organizationId={orgId}
-          complianceMemberIds={complianceMemberIds}
-        />
+        <Suspense fallback={<TeamMembersSkeleton />}>
+          <TeamMembers
+            canManageMembers={canManageMembers}
+            canInviteUsers={canInviteUsers}
+            isCurrentUserOwner={isCurrentUserOwner}
+            organizationId={orgId}
+            complianceMemberIds={complianceMemberIds}
+          />
+        </Suspense>
       }
       employeeTasksContent={showEmployeeTasks ? <EmployeesOverview /> : null}
       devicesContent={<DevicesTabContent isCurrentUserOwner={isCurrentUserOwner} />}
       orgChartContent={<OrgChartTabContent organizationId={orgId} />}
-      findingsContent={
-        <PeopleFindingsUnifiedList
-          isAuditor={isAuditor}
-          isPlatformAdmin={isPlatformAdmin}
-          isAdminOrOwner={canManageMembers}
-          showTasksScope={showEmployeeTasks}
-        />
-      }
+      findingsContent={null}
       showRoleMapping={false}
       roleMappingContent={null}
       showEmployeeTasks={showEmployeeTasks}

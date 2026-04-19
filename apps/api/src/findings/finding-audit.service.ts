@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { db, FindingStatus, FindingType } from '@db';
+import { db, FindingArea, FindingStatus, FindingType } from '@db';
 
 export interface FindingAuditParams {
   findingId: string;
@@ -8,20 +8,27 @@ export interface FindingAuditParams {
   memberId: string | null;
 }
 
+type TargetKind =
+  | 'task'
+  | 'evidenceSubmission'
+  | 'evidenceFormType'
+  | 'policy'
+  | 'vendor'
+  | 'risk'
+  | 'member'
+  | 'device'
+  | 'area';
+
 @Injectable()
 export class FindingAuditService {
   private readonly logger = new Logger(FindingAuditService.name);
 
-  /**
-   * Log finding creation
-   */
   async logFindingCreated(
     params: FindingAuditParams & {
-      taskId?: string;
-      taskTitle?: string;
-      evidenceSubmissionId?: string;
-      evidenceSubmissionFormType?: string;
-      findingScope?: string;
+      targetKind: TargetKind;
+      targetId: string | null;
+      targetLabel?: string | null;
+      area?: FindingArea | null;
       content: string;
       type: FindingType;
     },
@@ -38,11 +45,10 @@ export class FindingAuditService {
           data: {
             action: 'created',
             findingId: params.findingId,
-            taskId: params.taskId,
-            taskTitle: params.taskTitle,
-            evidenceSubmissionId: params.evidenceSubmissionId,
-            evidenceSubmissionFormType: params.evidenceSubmissionFormType,
-            findingScope: params.findingScope,
+            targetKind: params.targetKind,
+            targetId: params.targetId,
+            targetLabel: params.targetLabel ?? null,
+            area: params.area ?? null,
             content: params.content,
             type: params.type,
             status: FindingStatus.open,
@@ -51,13 +57,9 @@ export class FindingAuditService {
       });
     } catch (error) {
       this.logger.error('Failed to log finding creation:', error);
-      // Don't throw - audit log failures should not block operations
     }
   }
 
-  /**
-   * Log finding status change
-   */
   async logFindingStatusChanged(
     params: FindingAuditParams & {
       previousStatus: FindingStatus;
@@ -86,9 +88,6 @@ export class FindingAuditService {
     }
   }
 
-  /**
-   * Log finding content update
-   */
   async logFindingContentUpdated(
     params: FindingAuditParams & {
       previousContent: string;
@@ -117,9 +116,6 @@ export class FindingAuditService {
     }
   }
 
-  /**
-   * Log finding type change
-   */
   async logFindingTypeChanged(
     params: FindingAuditParams & {
       previousType: FindingType;
@@ -148,18 +144,8 @@ export class FindingAuditService {
     }
   }
 
-  /**
-   * Log finding deletion
-   */
   async logFindingDeleted(
-    params: FindingAuditParams & {
-      taskId?: string;
-      taskTitle?: string;
-      evidenceSubmissionId?: string;
-      evidenceSubmissionFormType?: string;
-      findingScope?: string;
-      content: string;
-    },
+    params: FindingAuditParams & { content: string },
   ): Promise<void> {
     try {
       await db.auditLog.create({
@@ -173,11 +159,6 @@ export class FindingAuditService {
           data: {
             action: 'deleted',
             findingId: params.findingId,
-            taskId: params.taskId,
-            taskTitle: params.taskTitle,
-            evidenceSubmissionId: params.evidenceSubmissionId,
-            evidenceSubmissionFormType: params.evidenceSubmissionFormType,
-            findingScope: params.findingScope,
             content: params.content,
           },
         },
@@ -187,9 +168,6 @@ export class FindingAuditService {
     }
   }
 
-  /**
-   * Get activity logs for a finding
-   */
   async getFindingActivity(findingId: string, organizationId: string) {
     try {
       return await db.auditLog.findMany({
@@ -200,17 +178,10 @@ export class FindingAuditService {
         },
         include: {
           user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              image: true,
-            },
+            select: { id: true, name: true, email: true, image: true },
           },
         },
-        orderBy: {
-          timestamp: 'desc', // Newest first
-        },
+        orderBy: { timestamp: 'desc' },
       });
     } catch (error) {
       this.logger.error('Failed to fetch finding activity:', error);

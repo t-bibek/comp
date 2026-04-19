@@ -7,35 +7,25 @@ import {
   IsOptional,
   MaxLength,
 } from 'class-validator';
-import { FindingScope, FindingType } from '@db';
+import { FindingArea, FindingSeverity, FindingType } from '@db';
 import {
   evidenceFormTypeSchema,
   type EvidenceFormType,
 } from '@/evidence-forms/evidence-forms.definitions';
 
 export class CreateFindingDto {
-  @ApiProperty({
-    description: 'Task ID this finding is associated with',
-    example: 'tsk_abc123',
-    required: false,
-  })
+  @ApiProperty({ description: 'Task ID', required: false })
   @IsString()
   @IsOptional()
   taskId?: string;
 
-  @ApiProperty({
-    description: 'Evidence submission ID this finding is associated with',
-    example: 'evs_abc123',
-    required: false,
-  })
+  @ApiProperty({ description: 'Evidence submission ID', required: false })
   @IsString()
   @IsOptional()
   evidenceSubmissionId?: string;
 
   @ApiProperty({
-    description:
-      'Evidence form type this finding is associated with (e.g., access-request, whistleblower-report)',
-    example: 'access-request',
+    description: 'Evidence form type',
     enum: evidenceFormTypeSchema.options,
     required: false,
   })
@@ -43,15 +33,39 @@ export class CreateFindingDto {
   @IsOptional()
   evidenceFormType?: EvidenceFormType;
 
+  @ApiProperty({ description: 'Policy ID', required: false })
+  @IsString()
+  @IsOptional()
+  policyId?: string;
+
+  @ApiProperty({ description: 'Vendor ID', required: false })
+  @IsString()
+  @IsOptional()
+  vendorId?: string;
+
+  @ApiProperty({ description: 'Risk ID', required: false })
+  @IsString()
+  @IsOptional()
+  riskId?: string;
+
+  @ApiProperty({ description: 'Member ID (person this finding targets)', required: false })
+  @IsString()
+  @IsOptional()
+  memberId?: string;
+
+  @ApiProperty({ description: 'Device ID', required: false })
+  @IsString()
+  @IsOptional()
+  deviceId?: string;
+
   @ApiProperty({
-    description:
-      'People area scope (e.g. people directory) when not tied to a task or evidence',
-    enum: FindingScope,
+    description: 'Broad area when the finding is not tied to a specific item',
+    enum: FindingArea,
     required: false,
   })
-  @IsEnum(FindingScope)
+  @IsEnum(FindingArea)
   @IsOptional()
-  scope?: FindingScope;
+  area?: FindingArea;
 
   @ApiProperty({
     description: 'Type of finding (SOC 2 or ISO 27001)',
@@ -63,20 +77,21 @@ export class CreateFindingDto {
   type?: FindingType;
 
   @ApiProperty({
-    description: 'Finding template ID (optional)',
-    example: 'fnd_t_abc123',
+    description: 'Severity',
+    enum: FindingSeverity,
+    default: FindingSeverity.medium,
     required: false,
   })
+  @IsEnum(FindingSeverity)
+  @IsOptional()
+  severity?: FindingSeverity;
+
+  @ApiProperty({ description: 'Finding template ID', required: false })
   @IsString()
   @IsOptional()
   templateId?: string;
 
-  @ApiProperty({
-    description: 'Finding content/message',
-    example:
-      'The uploaded evidence does not clearly show the Organization Name or URL.',
-    maxLength: 5000,
-  })
+  @ApiProperty({ description: 'Finding content/message', maxLength: 5000 })
   @IsString()
   @IsNotEmpty()
   @MaxLength(5000)
