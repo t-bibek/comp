@@ -1,4 +1,3 @@
-import { filterComplianceMembers } from '@/lib/compliance';
 import { auth } from '@/utils/auth';
 import { db } from '@db/server';
 import type { Metadata } from 'next';
@@ -15,43 +14,25 @@ import { OrgChartTabContent } from './org-chart/components/OrgChartTabContent';
 export default async function PeoplePage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
 
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
+  const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.session.activeOrganizationId) {
     return redirect('/');
   }
 
+  // Only the caller's own Member row is needed to decide tab visibility /
+  // permissions. The heavier org-wide queries (full membership list,
+  // compliance-role filtering) used to live here too, but they blocked the
+  // page shell on every tab switch. They've been moved into <TeamMembers>
+  // (which is Suspense-wrapped), so switching to Chart / Devices / Org-chart
+  // no longer waits on compliance bookkeeping.
   const currentUserMember = await db.member.findFirst({
-    where: {
-      organizationId: orgId,
-      userId: session.user.id,
-    },
+    where: { organizationId: orgId, userId: session.user.id },
   });
   const currentUserRoles = currentUserMember?.role?.split(',').map((r) => r.trim()) ?? [];
   const canManageMembers = currentUserRoles.some((role) => ['owner', 'admin'].includes(role));
   const isAuditor = currentUserRoles.includes('auditor');
   const canInviteUsers = canManageMembers || isAuditor;
   const isCurrentUserOwner = currentUserRoles.includes('owner');
-
-  // Only fetch what page-level logic needs: the set of members with compliance
-  // obligations. Used to (a) decide whether the Tasks tab shows, and (b) tell
-  // the People tab which members to include in the device compliance map.
-  const complianceMembers = await db.member.findMany({
-    where: {
-      organizationId: orgId,
-      deactivated: false,
-      isActive: true,
-    },
-    include: {
-      user: { select: { role: true } },
-    },
-  });
-
-  const employees = await filterComplianceMembers(complianceMembers, orgId);
-  const complianceMemberIds = employees.map((m) => m.id);
-  const showEmployeeTasks = employees.length > 0;
 
   return (
     <PeoplePageTabs
@@ -62,17 +43,16 @@ export default async function PeoplePage({ params }: { params: Promise<{ orgId: 
             canInviteUsers={canInviteUsers}
             isCurrentUserOwner={isCurrentUserOwner}
             organizationId={orgId}
-            complianceMemberIds={complianceMemberIds}
           />
         </Suspense>
       }
-      employeeTasksContent={showEmployeeTasks ? <EmployeesOverview /> : null}
+      employeeTasksContent={<EmployeesOverview />}
       devicesContent={<DevicesTabContent isCurrentUserOwner={isCurrentUserOwner} />}
       orgChartContent={<OrgChartTabContent organizationId={orgId} />}
       findingsContent={null}
       showRoleMapping={false}
       roleMappingContent={null}
-      showEmployeeTasks={showEmployeeTasks}
+      showEmployeeTasks
       canInviteUsers={canInviteUsers}
       canManageMembers={canManageMembers}
       organizationId={orgId}

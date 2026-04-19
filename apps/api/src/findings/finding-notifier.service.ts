@@ -1,6 +1,7 @@
 import { db, FindingArea, FindingStatus, FindingType } from '@db';
 import { Injectable, Logger } from '@nestjs/common';
 import { isUserUnsubscribed } from '@trycompai/email';
+import { toExternalEvidenceFormType } from '@trycompai/company';
 import { triggerEmail } from '../email/trigger-email';
 import { FindingNotificationEmail } from '../email/templates/finding-notification';
 import { NovuService } from '../notifications/novu.service';
@@ -89,6 +90,19 @@ function getAppUrl(): string {
   );
 }
 
+/**
+ * Convert a DB evidence form-type value (e.g. `board_meeting`) to its external
+ * form (`board-meeting`). Callers pass the raw DB column value through as a
+ * `string`, so we cast through `unknown` to the typed helper.
+ */
+function normalizeFormType(formType: string | null | undefined): string | null {
+  if (!formType) return null;
+  const external = toExternalEvidenceFormType(
+    formType as unknown as Parameters<typeof toExternalEvidenceFormType>[0],
+  );
+  return external ?? formType;
+}
+
 /** Short label describing what the finding is about. */
 function findingLabel(f: FindingForNotification): string {
   if (f.task) return f.task.title;
@@ -97,8 +111,10 @@ function findingLabel(f: FindingForNotification): string {
   if (f.risk) return `Risk: ${f.risk.title}`;
   if (f.member) return `Person: ${f.member.user.name ?? f.member.user.email}`;
   if (f.device) return `Device: ${f.device.name || f.device.hostname}`;
-  if (f.evidenceSubmission) return `Document: ${f.evidenceSubmission.formType}`;
-  if (f.evidenceFormType) return `Document: ${f.evidenceFormType}`;
+  if (f.evidenceSubmission)
+    return `Document: ${normalizeFormType(f.evidenceSubmission.formType) ?? f.evidenceSubmission.formType}`;
+  if (f.evidenceFormType)
+    return `Document: ${normalizeFormType(f.evidenceFormType) ?? f.evidenceFormType}`;
   if (f.area) return `Area: ${f.area}`;
   return 'Finding';
 }
@@ -155,11 +171,20 @@ export class FindingNotifierService {
     if (params.newStatus === FindingStatus.open) return;
 
     if (params.newStatus === FindingStatus.ready_for_review) {
-      if (!params.finding.createdById) return;
-      const recipients = await this.getFindingCreator(
-        params.finding.createdById,
-        params.actorUserId,
-      );
+      // When a finding was created by a platform admin, `createdById` (which
+      // references a Member row) is null and `createdByAdminId` is set instead.
+      // Platform admins don't belong to the org and can't receive org-scoped
+      // notifications, so fall back to notifying org owners/admins so the
+      // review can still be actioned on.
+      const recipients = params.finding.createdById
+        ? await this.getFindingCreator(
+            params.finding.createdById,
+            params.actorUserId,
+          )
+        : await this.getOwnersAndAdmins(
+            params.organizationId,
+            params.actorUserId,
+          );
       if (recipients.length === 0) return;
       const label = findingLabel(params.finding);
       await this.sendNotifications({
@@ -430,10 +455,23 @@ export class FindingNotifierService {
     const already = admins.some((a) => a.userId === primaryUserId);
     if (already) return admins;
 
-    const user = await db.user.findUnique({
-      where: { id: primaryUserId },
-      select: { id: true, email: true, name: true },
+    // Only include the primary recipient if they're still an active member
+    // of this organization. `getOwnersAndAdmins` already filters on
+    // `deactivated: false`; we apply the same filter here so deactivated
+    // assignees (e.g. an old task owner who's since left the org) aren't
+    // emailed about new findings on their former targets.
+    const member = await db.member.findFirst({
+      where: {
+        organizationId,
+        userId: primaryUserId,
+        deactivated: false,
+        isActive: true,
+      },
+      select: {
+        user: { select: { id: true, email: true, name: true } },
+      },
     });
+    const user = member?.user;
     if (!user || !user.email) return admins;
 
     return [

@@ -67,6 +67,7 @@ const TARGET_OPTIONS: { value: TargetKind; label: string }[] = [
   { value: 'member', label: 'Person' },
   { value: 'device', label: 'Device' },
   { value: 'evidenceFormType', label: 'Document type' },
+  { value: 'evidenceSubmission', label: 'Evidence submission' },
   { value: 'area', label: 'Area' },
 ];
 
@@ -74,6 +75,9 @@ const AREA_OPTIONS: { value: FindingArea; label: string }[] = [
   { value: FindingArea.people, label: 'People' },
   { value: FindingArea.documents, label: 'Documents' },
   { value: FindingArea.compliance, label: 'Compliance' },
+  { value: FindingArea.risks, label: 'Risks (general)' },
+  { value: FindingArea.vendors, label: 'Vendors (general)' },
+  { value: FindingArea.policies, label: 'Policies (general)' },
 ];
 
 const createFindingSchema = z.object({
@@ -97,6 +101,18 @@ interface CreateFindingSheetProps {
   defaultTarget?: { kind: TargetKind; id?: string };
   /** Optional submit override (admin uses this to post to the admin org-scoped endpoint). */
   createFn?: (payload: CreateFindingData) => Promise<void>;
+  /**
+   * Optional override of the picker data endpoints. Used by the platform-admin
+   * surface so the pickers fetch from `/v1/admin/organizations/<orgId>/...`
+   * instead of the current session's org. A `null` override disables the
+   * picker for that kind (e.g. when no admin endpoint exists).
+   */
+  endpointOverrides?: Partial<Record<TargetKind, string | null>>;
+  /**
+   * Target kinds to hide from the dropdown entirely. Used by the admin surface
+   * to disable target types that have no admin-scoped data endpoint.
+   */
+  disabledTargetKinds?: TargetKind[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
@@ -105,6 +121,8 @@ interface CreateFindingSheetProps {
 export function CreateFindingSheet({
   defaultTarget,
   createFn,
+  endpointOverrides,
+  disabledTargetKinds,
   open,
   onOpenChange,
   onSuccess,
@@ -168,6 +186,14 @@ export function CreateFindingSheet({
 
   const targetKind = form.watch('targetKind');
   const selectedTemplateId = form.watch('templateId');
+
+  const availableTargetOptions = useMemo(
+    () =>
+      disabledTargetKinds && disabledTargetKinds.length > 0
+        ? TARGET_OPTIONS.filter((o) => !disabledTargetKinds.includes(o.value))
+        : TARGET_OPTIONS,
+    [disabledTargetKinds],
+  );
 
   const apiTemplates: FindingTemplate[] = templatesData?.data || [];
   const templates: FindingTemplate[] =
@@ -270,10 +296,10 @@ export function CreateFindingSheet({
                 }}
               >
                 <SelectTrigger>
-                  {TARGET_OPTIONS.find((o) => o.value === field.value)?.label}
+                  {availableTargetOptions.find((o) => o.value === field.value)?.label}
                 </SelectTrigger>
                 <SelectContent>
-                  {TARGET_OPTIONS.map((opt) => (
+                  {availableTargetOptions.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
@@ -289,6 +315,7 @@ export function CreateFindingSheet({
           kind={targetKind}
           value={form.watch('targetId') ?? ''}
           onChange={(v) => form.setValue('targetId', v)}
+          endpointOverrides={endpointOverrides}
         />
 
         <FormField
@@ -441,10 +468,12 @@ function TargetPicker({
   kind,
   value,
   onChange,
+  endpointOverrides,
 }: {
   kind: TargetKind;
   value: string;
   onChange: (value: string) => void;
+  endpointOverrides?: Partial<Record<TargetKind, string | null>>;
 }) {
   if (kind === 'area') {
     return (
@@ -469,22 +498,36 @@ function TargetPicker({
     );
   }
 
-  return <EntityPicker kind={kind} value={value} onChange={onChange} />;
+  return (
+    <EntityPicker
+      kind={kind}
+      value={value}
+      onChange={onChange}
+      endpointOverrides={endpointOverrides}
+    />
+  );
 }
 
 function EntityPicker({
   kind,
   value,
   onChange,
+  endpointOverrides,
 }: {
   kind: Exclude<TargetKind, 'area'>;
   value: string;
   onChange: (value: string) => void;
+  endpointOverrides?: Partial<Record<TargetKind, string | null>>;
 }) {
-  const endpoint = useMemo(
-    () => (kind === 'evidenceSubmission' ? null : endpointForKind(kind)),
-    [kind],
-  );
+  const endpoint = useMemo(() => {
+    if (kind === 'evidenceSubmission') return null;
+    // An explicit override (including `null`) wins over the default. `null`
+    // means "no admin endpoint exists for this kind", so skip fetching.
+    if (endpointOverrides && kind in endpointOverrides) {
+      return endpointOverrides[kind] ?? null;
+    }
+    return endpointForKind(kind);
+  }, [kind, endpointOverrides]);
   const { data } = useApiSWR<unknown>(endpoint, { refreshInterval: 0 });
   const options = useMemo<Option[]>(
     () => extractOptions(kind, data),

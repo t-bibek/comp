@@ -316,18 +316,9 @@ export class FindingsService {
       include: this.findingInclude,
     });
 
-    await this.findingAuditService.logFindingCreated({
-      findingId: finding.id,
-      organizationId,
-      userId,
-      memberId,
-      targetKind: target.kind,
-      targetId: 'id' in target ? target.id : null,
-      targetLabel: target.label,
-      area: createDto.area ?? null,
-      content: createDto.content,
-      type: createDto.type ?? FindingType.soc2,
-    });
+    // Creation is already logged by the global AuditLogInterceptor via
+    // `extractFindingDescription` — no explicit call here, otherwise the
+    // activity feed shows two "created" entries per finding.
 
     const actorName =
       finding.createdBy?.user?.name ||
@@ -468,13 +459,9 @@ export class FindingsService {
 
     await db.finding.delete({ where: { id: findingId } });
 
-    await this.findingAuditService.logFindingDeleted({
-      findingId,
-      organizationId,
-      userId,
-      memberId,
-      content: finding.content,
-    });
+    // Deletion is already logged by the global AuditLogInterceptor via
+    // `extractFindingDescription`. No explicit call here to avoid a
+    // duplicate activity entry.
 
     this.logger.log(`Deleted finding ${findingId}`);
     return {

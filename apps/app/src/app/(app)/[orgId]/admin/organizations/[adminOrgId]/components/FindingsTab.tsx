@@ -221,6 +221,17 @@ export function FindingsTab({ orgId }: { orgId: string }) {
         open={showForm}
         onOpenChange={setShowForm}
         createFn={adminCreateFn}
+        // Route picker queries to the admin org-scoped endpoints so we fetch
+        // the target org's tasks/policies/vendors/etc. instead of the platform
+        // admin's own session org. Target kinds without an admin-scoped
+        // endpoint (risk, member, device) are hidden from the dropdown.
+        endpointOverrides={{
+          task: `/v1/admin/organizations/${orgId}/tasks`,
+          policy: `/v1/admin/organizations/${orgId}/policies`,
+          vendor: `/v1/admin/organizations/${orgId}/vendors`,
+          evidenceFormType: `/v1/admin/organizations/${orgId}/evidence-forms`,
+        }}
+        disabledTargetKinds={['risk', 'member', 'device']}
         onSuccess={() => {
           void fetchFindings();
         }}

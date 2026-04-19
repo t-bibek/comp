@@ -16,11 +16,13 @@ import {
 export class CreateFindingDto {
   @ApiProperty({ description: 'Task ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   taskId?: string;
 
   @ApiProperty({ description: 'Evidence submission ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   evidenceSubmissionId?: string;
 
@@ -35,26 +37,31 @@ export class CreateFindingDto {
 
   @ApiProperty({ description: 'Policy ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   policyId?: string;
 
   @ApiProperty({ description: 'Vendor ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   vendorId?: string;
 
   @ApiProperty({ description: 'Risk ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   riskId?: string;
 
   @ApiProperty({ description: 'Member ID (person this finding targets)', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   memberId?: string;
 
   @ApiProperty({ description: 'Device ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   deviceId?: string;
 
@@ -88,6 +95,7 @@ export class CreateFindingDto {
 
   @ApiProperty({ description: 'Finding template ID', required: false })
   @IsString()
+  @IsNotEmpty()
   @IsOptional()
   templateId?: string;
 

@@ -21,6 +21,16 @@ enum FindingArea {
   people
   documents
   compliance
+  // "General" buckets for cases where an auditor wants to log something like
+  // "no risks are tracked" or "the policy for X is missing" without picking a
+  // specific Risk/Vendor/Policy row.
+  risks
+  vendors
+  policies
+  // Legacy/unclassified bucket for rows backfilled from the old FindingScope
+  // enum (see migration 20260419120000). Not surfaced as a primary target
+  // option in the Create Finding sheet.
+  other
 }
 
 model FindingTemplate {

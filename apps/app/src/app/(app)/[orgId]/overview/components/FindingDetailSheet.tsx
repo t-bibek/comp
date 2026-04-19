@@ -71,14 +71,43 @@ function targetHref(f: Finding, orgId: string): string | null {
   if (f.taskId) return `/${orgId}/tasks/${f.taskId}`;
   if (f.policyId) return `/${orgId}/policies/${f.policyId}`;
   if (f.vendorId) return `/${orgId}/vendors/${f.vendorId}`;
-  if (f.riskId) return `/${orgId}/risks/${f.riskId}`;
+  if (f.riskId) return `/${orgId}/risk/${f.riskId}`;
   if (f.memberId) return `/${orgId}/people/${f.memberId}`;
   if (f.deviceId) return `/${orgId}/people?tab=devices&device=${f.deviceId}`;
   if (f.evidenceSubmission) return `/${orgId}/documents/${f.evidenceSubmission.formType}`;
   if (f.evidenceFormType) return `/${orgId}/documents/${f.evidenceFormType}`;
   if (f.area === 'people') return `/${orgId}/people`;
   if (f.area === 'documents') return `/${orgId}/documents`;
+  if (f.area === 'risks') return `/${orgId}/risk`;
+  if (f.area === 'vendors') return `/${orgId}/vendors`;
+  if (f.area === 'policies') return `/${orgId}/policies`;
   return null;
+}
+
+const LEGACY_SCOPE_LABELS: Record<string, string> = {
+  people: 'People › Directory',
+  people_tasks: 'People › Tasks',
+  people_devices: 'People › Devices',
+  people_chart: 'People › Org chart',
+};
+
+/**
+ * Rows that pre-date the unified-findings migration have their original
+ * `FindingScope` value preserved on the creation AuditLog entry. Surface it
+ * so owners/admins can see where the finding was originally filed — otherwise
+ * legacy people-scope findings all look identical under `area='people'`.
+ */
+function legacyScopeLabelFromHistory(
+  history: FindingHistoryEntry[] | undefined,
+): string | null {
+  if (!history || history.length === 0) return null;
+  // History comes back newest-first; the creation entry is the oldest one.
+  const createdEntry = [...history]
+    .reverse()
+    .find((e) => e.data?.action === 'created');
+  const scope = createdEntry?.data?.findingScope;
+  if (!scope) return null;
+  return LEGACY_SCOPE_LABELS[scope] ?? scope;
 }
 
 function targetLabel(f: Finding): string {
@@ -90,6 +119,9 @@ function targetLabel(f: Finding): string {
   if (f.device) return `Device: ${f.device.name || f.device.hostname}`;
   if (f.evidenceSubmission) return `Document: ${f.evidenceSubmission.formType}`;
   if (f.evidenceFormType) return `Document: ${f.evidenceFormType}`;
+  if (f.area === 'risks') return 'Risks (general)';
+  if (f.area === 'vendors') return 'Vendors (general)';
+  if (f.area === 'policies') return 'Policies (general)';
   if (f.area) return `Area: ${f.area}`;
   return 'Finding';
 }
@@ -137,6 +169,7 @@ export function FindingDetailSheet({
   const history: FindingHistoryEntry[] = Array.isArray(historyData?.data)
     ? historyData.data
     : [];
+  const legacyScopeLabel = legacyScopeLabelFromHistory(history);
 
   const contentChanged = canEditContent && content !== finding.content;
   const isDirty =
@@ -227,6 +260,14 @@ export function FindingDetailSheet({
               <Text size="sm" weight="medium">
                 {targetLabel(finding)}
               </Text>
+              {legacyScopeLabel && (
+                <p className="text-xs text-muted-foreground">
+                  Originally logged against{' '}
+                  <span className="font-medium text-foreground">
+                    {legacyScopeLabel}
+                  </span>
+                </p>
+              )}
               {href && (
                 <Link
                   href={href}

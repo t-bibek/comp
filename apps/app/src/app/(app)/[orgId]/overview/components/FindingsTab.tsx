@@ -74,6 +74,9 @@ function targetLabel(f: Finding): string {
   if (f.evidenceSubmission)
     return `Document: ${f.evidenceSubmission.formType.replace(/-/g, ' ')}`;
   if (f.evidenceFormType) return `Document: ${f.evidenceFormType.replace(/-/g, ' ')}`;
+  if (f.area === 'risks') return 'Risks (general)';
+  if (f.area === 'vendors') return 'Vendors (general)';
+  if (f.area === 'policies') return 'Policies (general)';
   if (f.area) return `Area: ${capitalize(f.area)}`;
   return '—';
 }

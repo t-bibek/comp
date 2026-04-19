@@ -33,6 +33,12 @@ jest.mock('@db', () => ({
     closed: 'closed',
   },
   FindingType: { soc2: 'soc2', iso27001: 'iso27001' },
+  FindingSeverity: {
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    critical: 'critical',
+  },
 }));
 
 import { FindingsService } from './findings.service';

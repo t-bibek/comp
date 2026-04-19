@@ -1,6 +1,6 @@
 const mockDb = {
   organization: { findUnique: jest.fn() },
-  member: { findMany: jest.fn(), findUnique: jest.fn() },
+  member: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn() },
   user: { findUnique: jest.fn() },
   policy: { findUnique: jest.fn() },
   vendor: { findUnique: jest.fn() },
@@ -78,6 +78,13 @@ describe('FindingNotifierService', () => {
         user: { id: 'usr_owner', email: 'owner@acme.com', name: 'Owner' },
       },
     ]);
+    mockDb.member.findFirst.mockResolvedValue({
+      user: {
+        id: 'usr_assignee',
+        email: 'assignee@acme.com',
+        name: 'Assignee',
+      },
+    });
     mockDb.user.findUnique.mockResolvedValue({
       id: 'usr_assignee',
       email: 'assignee@acme.com',

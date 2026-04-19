@@ -119,6 +119,9 @@ export interface FindingHistoryEntry {
     targetKind?: string;
     targetId?: string | null;
     targetLabel?: string | null;
+    // Legacy: present on creation entries written before the unified-findings
+    // migration. Values: 'people' | 'people_tasks' | 'people_devices' | 'people_chart'.
+    findingScope?: string;
     content?: string;
     type?: FindingType;
     status?: FindingStatus;
