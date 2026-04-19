@@ -155,16 +155,17 @@ export function FindingDetailSheet({
   onSaved,
   onDeleted,
 }: FindingDetailSheetProps) {
-  const { hasPermission, permissions } = usePermissions();
+  const { hasPermission, roles } = usePermissions();
   const { data: session } = useSession();
   const canUpdate = hasPermission('finding', 'update');
   const canDelete = hasPermission('finding', 'delete');
+  // Match the API's literal role check (`userRoles.includes('auditor')` in
+  // findings.service.ts). A custom role granting `finding:create` does NOT
+  // count as auditor on the server, so we can't proxy via permissions here.
+  const isAuditor = roles.includes('auditor');
+  const isPlatformAdmin = session?.user?.role === 'admin';
   // Only auditors can rewrite a finding's content; owners/admins can still
   // move the status forward but the audit narrative belongs to the auditor.
-  const isAuditor =
-    Array.isArray(permissions?.finding) &&
-    permissions.finding.includes('create');
-  const isPlatformAdmin = session?.user?.role === 'admin';
   const canEditContent = canUpdate && isAuditor;
   const { updateFinding, deleteFinding } = useFindingActions();
   const { data: historyData } = useFindingHistory(finding?.id ?? null);
