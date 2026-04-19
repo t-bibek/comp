@@ -15,6 +15,14 @@ function capitalize(s: string) {
 import { usePermissions } from '@/hooks/use-permissions';
 import { FindingSeverity, FindingStatus } from '@db';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Badge,
   Button,
   HStack,
@@ -31,6 +39,7 @@ import {
   Text,
   Textarea,
 } from '@trycompai/design-system';
+import { Copy } from '@trycompai/design-system/icons';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -111,6 +120,7 @@ export function FindingDetailSheet({
   const [revisionNote, setRevisionNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (finding) {
@@ -161,11 +171,11 @@ export function FindingDetailSheet({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this finding? This cannot be undone.')) return;
     setDeleting(true);
     try {
       await deleteFinding(finding.id);
       toast.success('Finding deleted');
+      setConfirmDeleteOpen(false);
       onDeleted?.();
       onOpenChange(false);
     } catch (error) {
@@ -180,6 +190,17 @@ export function FindingDetailSheet({
   const statusCfg = FINDING_STATUS_CONFIG[finding.status];
   const severityCfg = FINDING_SEVERITY_CONFIG[finding.severity];
 
+  const handleCopyShareLink = async () => {
+    if (typeof window === 'undefined') return;
+    const shareUrl = `${window.location.origin}/${organizationId}/overview/findings?open=${finding.id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Link copied — share it with your team');
+    } catch {
+      toast.error('Could not copy link to clipboard');
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
@@ -189,9 +210,19 @@ export function FindingDetailSheet({
         <SheetBody>
           <Stack gap="lg">
             <Stack gap="xs">
-              <HStack gap="xs" align="center">
-                <Badge variant="secondary">{severityCfg.label}</Badge>
-                <Badge variant="outline">{statusCfg.label}</Badge>
+              <HStack justify="between" align="center">
+                <HStack gap="xs" align="center">
+                  <Badge variant="secondary">{severityCfg.label}</Badge>
+                  <Badge variant="outline">{statusCfg.label}</Badge>
+                </HStack>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconLeft={<Copy size={14} />}
+                  onClick={handleCopyShareLink}
+                >
+                  Copy link
+                </Button>
               </HStack>
               <Text size="sm" weight="medium">
                 {targetLabel(finding)}
@@ -280,11 +311,10 @@ export function FindingDetailSheet({
             <HStack justify="between">
               {canDelete ? (
                 <Button
-                  variant="ghost"
+                  variant="destructive"
                   size="sm"
-                  onClick={handleDelete}
+                  onClick={() => setConfirmDeleteOpen(true)}
                   disabled={deleting}
-                  loading={deleting}
                 >
                   Delete
                 </Button>
@@ -339,6 +369,28 @@ export function FindingDetailSheet({
           </Stack>
         </SheetBody>
       </SheetContent>
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete finding?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the finding and its activity history.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   );
 }
