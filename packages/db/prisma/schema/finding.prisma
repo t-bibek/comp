@@ -21,6 +21,10 @@ enum FindingArea {
   people
   documents
   compliance
+  // Legacy/unclassified bucket for rows backfilled from the old FindingScope
+  // enum (see migrations 20260419120000 + 20260419140001). Not surfaced as a
+  // primary target option in the Create Finding sheet.
+  other
 }
 
 model FindingTemplate {
