@@ -195,17 +195,21 @@ export const sanitizedInputsCheck: IntegrationCheck = {
       // a prose comment).
       const lines = content.split('\n');
       for (const rawLine of lines) {
-        const line = rawLine.split('#')[0].toLowerCase();
+        // Strip only actual comments (`#` preceded by whitespace or at line start).
+        // This preserves URL fragments like `git+https://...#egg=pydantic` used for
+        // editable VCS installs in requirements.txt.
+        const line = rawLine.replace(/(^|\s)#.*$/, '').toLowerCase();
         if (!line.trim()) continue;
         for (const candidate of PY_VALIDATION_PACKAGES) {
           const escaped = escapeRegex(candidate.toLowerCase());
           // Match the package name as a standalone token. Leading context: start
           // of line or a separator commonly preceding a package name (whitespace,
-          // quote, bracket, comma, semicolon). Trailing context: end of line or a
-          // separator that can follow a package name (whitespace, version
-          // operator, bracket, quote, comma, semicolon).
+          // quote, bracket, comma, semicolon, or `=` for `#egg=name` VCS syntax).
+          // Trailing context: end of line or a separator that can follow a
+          // package name (whitespace, version operator, bracket, quote, comma,
+          // semicolon).
           const pattern = new RegExp(
-            `(?:^|[\\s"'\\[,;])${escaped}(?:$|[\\s=<>!~\\[\\]"',;])`,
+            `(?:^|[\\s"'\\[,;=])${escaped}(?:$|[\\s=<>!~\\[\\]"',;])`,
           );
           if (pattern.test(line)) {
             return { library: candidate, file: filePath };
