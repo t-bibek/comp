@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   canAccessApp,
-  canAccessAuditorView,
   canAccessCompliance,
   canAccessRoute,
   getDefaultRoute,
   hasPermission,
+  mergePermissions,
+  resolveBuiltInPermissions,
   type UserPermissions,
 } from './permissions';
 
@@ -134,60 +135,65 @@ describe('hasPermission', () => {
   });
 });
 
-// CS-189: Auditor View visibility is intentionally stricter than bare
-// `audit:read` — owner and admin implicitly have every permission, but the
-// CTO's product decision is that the tab only appears for users whose role
-// explicitly scopes them to audit work (built-in auditor OR a custom role
-// that specifically grants audit:read).
-describe('canAccessAuditorView', () => {
-  const noCustom: UserPermissions = {};
+// CS-189: Auditor View is gated by `audit:read` (see ROUTE_PERMISSIONS.auditor).
+// Owners/admins intentionally do NOT have audit:read in their built-in role
+// definitions (packages/auth/src/permissions.ts) — that permission is reserved
+// for the built-in `auditor` role or for custom org roles that explicitly
+// opt in. This test exercises the full resolution path the app uses.
+describe('Auditor View visibility (audit:read gating)', () => {
+  const resolve = (
+    roleString: string,
+    customRolePerms: UserPermissions = {},
+  ): UserPermissions => {
+    const { permissions } = resolveBuiltInPermissions(roleString);
+    mergePermissions(permissions, customRolePerms);
+    return permissions;
+  };
 
   it('shows for the built-in auditor role', () => {
-    expect(canAccessAuditorView('auditor', noCustom)).toBe(true);
+    expect(canAccessRoute(resolve('auditor'), 'auditor')).toBe(true);
   });
 
   it('shows when auditor is one of several roles (e.g. owner,auditor)', () => {
-    expect(canAccessAuditorView('owner,auditor', noCustom)).toBe(true);
-    expect(canAccessAuditorView('admin, auditor', noCustom)).toBe(true);
+    expect(canAccessRoute(resolve('owner,auditor'), 'auditor')).toBe(true);
+    expect(canAccessRoute(resolve('admin, auditor'), 'auditor')).toBe(true);
   });
 
-  it('hides for owner alone (implicit audit:read does NOT count)', () => {
-    expect(canAccessAuditorView('owner', noCustom)).toBe(false);
+  it('hides for owner alone (no audit:read on owner role)', () => {
+    expect(canAccessRoute(resolve('owner'), 'auditor')).toBe(false);
   });
 
-  it('hides for admin alone (implicit audit:read does NOT count)', () => {
-    expect(canAccessAuditorView('admin', noCustom)).toBe(false);
+  it('hides for admin alone (no audit:read on admin role)', () => {
+    expect(canAccessRoute(resolve('admin'), 'auditor')).toBe(false);
   });
 
   it('hides for employee / contractor', () => {
-    expect(canAccessAuditorView('employee', noCustom)).toBe(false);
-    expect(canAccessAuditorView('contractor', noCustom)).toBe(false);
+    expect(canAccessRoute(resolve('employee'), 'auditor')).toBe(false);
+    expect(canAccessRoute(resolve('contractor'), 'auditor')).toBe(false);
   });
 
   it('shows when a custom role explicitly grants audit:read', () => {
-    const customRolePerms: UserPermissions = { audit: ['read'] };
-    expect(canAccessAuditorView('CompAI', customRolePerms)).toBe(true);
+    expect(
+      canAccessRoute(resolve('CompAI', { audit: ['read'] }), 'auditor'),
+    ).toBe(true);
   });
 
   it('shows when owner is combined with a custom role that grants audit:read', () => {
-    const customRolePerms: UserPermissions = { audit: ['read'] };
-    expect(canAccessAuditorView('owner,CompAI', customRolePerms)).toBe(true);
+    expect(
+      canAccessRoute(resolve('owner,CompAI', { audit: ['read'] }), 'auditor'),
+    ).toBe(true);
   });
 
   it('hides when owner has a custom role that does NOT grant audit:read', () => {
-    // Owner's implicit audit:read is what `permissions` would carry, but
-    // `canAccessAuditorView` only looks at custom-role permissions — so if
-    // the custom role is something like "ReadOnlyViewer" without audit, the
-    // tab stays hidden even though the merged permissions would pass.
-    const customRolePerms: UserPermissions = { evidence: ['read'] };
-    expect(canAccessAuditorView('owner,ReadOnlyViewer', customRolePerms)).toBe(
-      false,
-    );
+    expect(
+      canAccessRoute(
+        resolve('owner,ReadOnlyViewer', { evidence: ['read'] }),
+        'auditor',
+      ),
+    ).toBe(false);
   });
 
-  it('hides when role string is empty / null / undefined', () => {
-    expect(canAccessAuditorView('', noCustom)).toBe(false);
-    expect(canAccessAuditorView(null, noCustom)).toBe(false);
-    expect(canAccessAuditorView(undefined, noCustom)).toBe(false);
+  it('hides when role string is empty', () => {
+    expect(canAccessRoute(resolve(''), 'auditor')).toBe(false);
   });
 });

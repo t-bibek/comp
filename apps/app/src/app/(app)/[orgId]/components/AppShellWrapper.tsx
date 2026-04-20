@@ -68,8 +68,6 @@ interface AppShellWrapperProps {
   isSecurityEnabled: boolean;
   hasAuditorRole: boolean;
   isOnlyAuditor: boolean;
-  /** CS-189: server-resolved Auditor View visibility — see resolveAuditorViewAccess. */
-  canAccessAuditorView: boolean;
   permissions: UserPermissions;
   user: {
     name: string | null;
@@ -101,7 +99,6 @@ function AppShellWrapperContent({
   isSecurityEnabled,
   hasAuditorRole,
   isOnlyAuditor,
-  canAccessAuditorView,
   permissions,
   user,
   isAdmin,
@@ -147,7 +144,6 @@ function AppShellWrapperContent({
     permissions,
     hasAuditorRole,
     isOnlyAuditor,
-    canAccessAuditorView,
     isQuestionnaireEnabled,
     isTrustNdaEnabled,
     isSecurityEnabled,
@@ -323,7 +319,6 @@ function AppShellWrapperContent({
                   hasAuditorRole={hasAuditorRole}
                   isOnlyAuditor={isOnlyAuditor}
                   permissions={permissions}
-                  canAccessAuditorView={canAccessAuditorView}
                 />
               )}
             </AppShellSidebar>

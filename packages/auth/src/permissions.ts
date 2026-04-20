@@ -70,7 +70,11 @@ export const owner = ac.newRole({
   vendor: ['create', 'read', 'update', 'delete'],
   task: ['create', 'read', 'update', 'delete'],
   framework: ['create', 'read', 'update', 'delete'],
-  audit: ['create', 'read', 'update'],
+  // CS-189: `audit:read` is reserved for the auditor-facing view. Owners can
+  // still manage audit scope (create/update) — but by omitting `read` here,
+  // the Auditor View tab/route is hidden from owners unless they opt in via
+  // a custom role granting `audit:read`.
+  audit: ['create', 'update'],
   // Findings are raised by auditors only; owners/admins can view & transition status via update
   finding: ['read', 'update'],
   questionnaire: ['create', 'read', 'update', 'delete'],
@@ -106,7 +110,9 @@ export const admin = ac.newRole({
   vendor: ['create', 'read', 'update', 'delete'],
   task: ['create', 'read', 'update', 'delete'],
   framework: ['create', 'read', 'update', 'delete'],
-  audit: ['create', 'read', 'update'],
+  // CS-189: see owner role above — `audit:read` is auditor-facing, admins
+  // can still create/update audit scope.
+  audit: ['create', 'update'],
   // Findings are raised by auditors only; owners/admins can view & transition status via update
   finding: ['read', 'update'],
   questionnaire: ['create', 'read', 'update', 'delete'],

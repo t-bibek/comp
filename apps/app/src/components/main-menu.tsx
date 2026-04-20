@@ -1,6 +1,7 @@
 'use client';
 
 import { usePermissions } from '@/hooks/use-permissions';
+import { canAccessRoute } from '@/lib/permissions';
 import { Badge } from '@trycompai/ui/badge';
 import { Button } from '@trycompai/ui/button';
 import { cn } from '@trycompai/ui/cn';
@@ -70,11 +71,7 @@ export function MainMenu({
   const pathname = usePathname();
   const [activeStyle, setActiveStyle] = useState({ top: '0px', height: '0px' });
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  // CS-189: Auditor View visibility is scoped to the built-in `auditor`
-  // role or a custom org role that explicitly grants audit:read — NOT to
-  // owner/admin's implicit all-permissions. See `canAccessAuditorView` in
-  // lib/permissions.ts for the full rule.
-  const { canAccessAuditorView } = usePermissions();
+  const { permissions } = usePermissions();
 
   const items: MenuItem[] = [
     {
@@ -100,7 +97,7 @@ export function MainMenu({
       disabled: false,
       icon: ClipboardCheck,
       protected: false,
-      hidden: !canAccessAuditorView,
+      hidden: !canAccessRoute(permissions, 'auditor'),
     },
     {
       id: 'controls',

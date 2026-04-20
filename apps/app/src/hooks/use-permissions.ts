@@ -10,7 +10,6 @@ import {
   hasPermission,
   parseRolesString,
   isBuiltInRole,
-  canAccessAuditorView,
   type UserPermissions,
 } from '@/lib/permissions';
 
@@ -76,18 +75,11 @@ export function usePermissions() {
     }
   }
 
-  // CS-189: separate "did a custom role grant this permission" from the
-  // merged permissions, so the Auditor View visibility check can distinguish
-  // an owner's implicit audit:read from a custom role's explicit audit:read.
-  const customPermissions = customData?.permissions ?? {};
-
   return {
     permissions,
-    customPermissions,
     obligations,
     roles: roleNames,
     hasPermission: (resource: string, action: string) =>
       hasPermission(permissions, resource, action),
-    canAccessAuditorView: canAccessAuditorView(roleString, customPermissions),
   };
 }
