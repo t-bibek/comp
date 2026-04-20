@@ -17,6 +17,8 @@ import type {
   SubmitForApprovalDto,
   UpdateVersionContentDto,
 } from './dto/version.dto';
+import { checkAutoCompletePhases } from '../frameworks/frameworks-timeline.helper';
+import { TimelinesService } from '../timelines/timelines.service';
 
 function computeNextReviewDate(frequency: Frequency | null | undefined): Date {
   const now = new Date();
@@ -40,6 +42,7 @@ export class PoliciesService {
   constructor(
     private readonly attachmentsService: AttachmentsService,
     private readonly pdfRendererService: PolicyPdfRendererService,
+    private readonly timelinesService: TimelinesService,
   ) {}
 
   async findAll(organizationId: string) {
@@ -157,6 +160,14 @@ export class PoliciesService {
       allMembers,
       organizationId,
     );
+
+    // Check timeline auto-completion after bulk publish
+    checkAutoCompletePhases({
+      organizationId,
+      timelinesService: this.timelinesService,
+    }).catch((err) => {
+      this.logger.warn('timeline auto-complete check failed after publish-all', err);
+    });
 
     return {
       success: true,
@@ -304,6 +315,15 @@ export class PoliciesService {
       });
 
       this.logger.log(`Created policy: ${policy.name} (${policy.id})`);
+
+      // Check timeline auto-completion after policy creation
+      checkAutoCompletePhases({
+        organizationId,
+        timelinesService: this.timelinesService,
+      }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
+
       return policy;
     } catch (error) {
       this.logger.error(
@@ -406,6 +426,15 @@ export class PoliciesService {
       });
 
       this.logger.log(`Updated policy: ${updatedPolicy.name} (${id})`);
+
+      // Check timeline auto-completion after policy update (status may have changed)
+      checkAutoCompletePhases({
+        organizationId,
+        timelinesService: this.timelinesService,
+      }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
+
       return updatedPolicy;
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -476,6 +505,15 @@ export class PoliciesService {
       });
 
       this.logger.log(`Deleted policy: ${policy.name} (${id})`);
+
+      // Check timeline auto-completion after policy deletion
+      checkAutoCompletePhases({
+        organizationId,
+        timelinesService: this.timelinesService,
+      }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
+
       return { success: true, deletedPolicy: policy };
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -837,7 +875,7 @@ export class PoliciesService {
 
     for (let attempt = 1; attempt <= this.versionCreateRetries; attempt += 1) {
       try {
-        return await db.$transaction(async (tx) => {
+        const result = await db.$transaction(async (tx) => {
           const latestVersion = await tx.policyVersion.findFirst({
             where: { policyId },
             orderBy: { version: 'desc' },
@@ -880,6 +918,16 @@ export class PoliciesService {
             version: nextVersion,
           };
         });
+
+        // Check timeline auto-completion after publishing a version
+        checkAutoCompletePhases({
+          organizationId,
+          timelinesService: this.timelinesService,
+        }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
+
+        return result;
       } catch (error) {
         if (
           this.isUniqueConstraintError(error) &&
@@ -934,6 +982,14 @@ export class PoliciesService {
         signedBy: [],
       },
     });
+
+    // Check timeline auto-completion after setting active version
+    checkAutoCompletePhases({
+      organizationId,
+      timelinesService: this.timelinesService,
+    }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
 
     return {
       versionId: version.id,
@@ -1030,6 +1086,11 @@ export class PoliciesService {
 
     if (!policy.pendingVersionId) {
       if (policy.approverId) {
+        if (policy.approverId !== dto.approverId) {
+          throw new BadRequestException(
+            'Only the assigned approver can accept changes',
+          );
+        }
         await db.policy.update({
           where: { id: policyId },
           data: { approverId: null },
@@ -1081,6 +1142,14 @@ export class PoliciesService {
         },
       });
     });
+
+    // Check timeline auto-completion after accepting changes (policy published)
+    checkAutoCompletePhases({
+      organizationId,
+      timelinesService: this.timelinesService,
+    }).catch((err) => {
+        this.logger.warn('timeline auto-complete check failed', err);
+      });
 
     return { versionId: version.id, version: version.version };
   }

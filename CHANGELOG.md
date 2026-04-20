@@ -1,3 +1,18 @@
+## [3.26.1](https://github.com/trycompai/comp/compare/v3.26.0...v3.26.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* **rbac:** gate Auditor View tab on audit:read instead of role string (CS-189) ([fa52778](https://github.com/trycompai/comp/commit/fa5277803772fd4011a4109cca9067c7921482bb))
+* **rbac:** scope Auditor View to explicit auditor roles (CS-189 follow-up) ([d7c3936](https://github.com/trycompai/comp/commit/d7c39362178d5a18c8d7d8ed342b5387773a1b32))
+
+# [3.26.0](https://github.com/trycompai/comp/compare/v3.25.1...v3.26.0) (2026-04-20)
+
+
+### Features
+
+* **vercel:** add project filter variables and parser helper ([9718d87](https://github.com/trycompai/comp/commit/9718d8704a91afd60a17f74335258e8b5dc89ca7))
+
 ## [3.25.1](https://github.com/trycompai/comp/compare/v3.25.0...v3.25.1) (2026-04-20)
 
 
