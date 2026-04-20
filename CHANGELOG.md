@@ -1,3 +1,25 @@
+# [3.27.0](https://github.com/trycompai/comp/compare/v3.26.1...v3.27.0) (2026-04-20)
+
+
+### Bug Fixes
+
+* **devices:** flag stale device agents as non-compliant + CSV export ([#2612](https://github.com/trycompai/comp/issues/2612)) ([0d59e8f](https://github.com/trycompai/comp/commit/0d59e8f4f748aaf5fc17e7c9b3a955424a120d5c))
+* **integration-platform:** preserve VCS url fragments in python matcher ([f820738](https://github.com/trycompai/comp/commit/f820738b43f3852b79e7776bdb4f7397b0b8329b))
+* **integration-platform:** use toml-aware comment stripping for pyproject.toml ([2cf8979](https://github.com/trycompai/comp/commit/2cf897912cdfa925ba89056f6279570e4e5240dd))
+* **integrations-catalog:** add global request pacing to prevent 429s ([0dfb793](https://github.com/trycompai/comp/commit/0dfb793be3d7182cc81b0a9bc1e9068211cb2b7a))
+
+
+### Features
+
+* add compliance timeline to overview (feature flagged) ([26c04d8](https://github.com/trycompai/comp/commit/26c04d8a8ec92596a583aaca2dc2f97258244603))
+* **integration-platform:** expand validation library detection for sanitized inputs check ([964cb1b](https://github.com/trycompai/comp/commit/964cb1bf300a68b9d71a18ab15c134974475f589))
+* **integrations-catalog:** add public catalog ([ea297de](https://github.com/trycompai/comp/commit/ea297de64dce68e376a29c240e1cdf105e22f41d))
+
+
+### Reverts
+
+* Revert "chore(app): remove the duplicated prisma/ setup" ([#2621](https://github.com/trycompai/comp/issues/2621)) ([a1889a1](https://github.com/trycompai/comp/commit/a1889a1b7579628f9504650802d2efff8ad64ba4))
+
 ## [3.26.1](https://github.com/trycompai/comp/compare/v3.26.0...v3.26.1) (2026-04-20)
 
 
